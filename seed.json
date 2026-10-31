@@ -1,0 +1,131 @@
+{
+  "rev": 1,
+  "teams": [
+    {
+      "id": "j1qg1cznkq5w8w3p1y72",
+      "name": "Überhitzter Ofen",
+      "players": [
+        "Eric",
+        "Oli"
+      ],
+      "createdAt": 1793443202289
+    },
+    {
+      "id": "bmr6nebzyl708u18b8dx",
+      "name": "Crease Violation",
+      "players": [
+        "Lenni",
+        "Katja"
+      ],
+      "createdAt": 1793443234139
+    },
+    {
+      "id": "or0wl69xdrqlp8n3mmwe",
+      "name": "Skeletcorns",
+      "players": [
+        "Kalle",
+        "Emil"
+      ],
+      "createdAt": 1793444450924
+    },
+    {
+      "id": "602odghjgf8gph6k1cgc",
+      "name": "Double Rainbow",
+      "players": [
+        "Lene",
+        "Carsten"
+      ],
+      "createdAt": 1793444495520
+    }
+  ],
+  "series": [
+    {
+      "id": "1hqoiv0cjbbqci1unhu5",
+      "a": "j1qg1cznkq5w8w3p1y72",
+      "b": "bmr6nebzyl708u18b8dx",
+      "date": "2026-10-31",
+      "games": [
+        {
+          "a": 6,
+          "b": 1
+        },
+        {
+          "a": 3,
+          "b": 3
+        },
+        {
+          "a": 3,
+          "b": 0
+        },
+        {
+          "a": 7,
+          "b": 3
+        }
+      ],
+      "createdAt": 1793443256420
+    },
+    {
+      "id": "uzhdqrzfj84lpo14k9fp",
+      "a": "bmr6nebzyl708u18b8dx",
+      "b": "or0wl69xdrqlp8n3mmwe",
+      "date": "2026-10-31",
+      "games": [
+        {
+          "a": 2,
+          "b": 0
+        },
+        {
+          "a": 4,
+          "b": 4
+        },
+        {
+          "a": 2,
+          "b": 1
+        },
+        {
+          "a": 4,
+          "b": 3
+        }
+      ],
+      "createdAt": 1793444535412
+    },
+    {
+      "id": "vkleax17nh4jw2jn35cv",
+      "a": "j1qg1cznkq5w8w3p1y72",
+      "b": "or0wl69xdrqlp8n3mmwe",
+      "date": "2026-10-31",
+      "games": [
+        {
+          "a": 8,
+          "b": 3
+        }
+      ],
+      "createdAt": 1793444548624
+    },
+    {
+      "id": "wvbxl6f8mbjej7ieazbh",
+      "a": "j1qg1cznkq5w8w3p1y72",
+      "b": "602odghjgf8gph6k1cgc",
+      "date": "2026-10-22",
+      "games": [
+        {
+          "a": 5,
+          "b": 1
+        },
+        {
+          "a": 6,
+          "b": 4
+        },
+        {
+          "a": 3,
+          "b": 3
+        },
+        {
+          "a": 3,
+          "b": 0
+        }
+      ],
+      "createdAt": 1793444641370
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+services:
+  # Tailscale-Sidecar: bringt den Dienst als eigenes Gerät "winterliga" ins Tailnet
+  # und stellt ihn per Funnel öffentlich unter https://winterliga.<tailnet>.ts.net bereit.
+  ts-winterliga:
+    image: tailscale/tailscale:stable
+    container_name: ts-winterliga
+    hostname: winterliga
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_HOSTNAME=winterliga
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/winterliga.json
+      - TS_USERSPACE=true
+      - TS_AUTH_ONCE=true
+    volumes:
+      - ./ts-state:/var/lib/tailscale:Z
+      - ./ts-config/winterliga.json:/config/winterliga.json:Z
+    restart: unless-stopped
+
+  # Die eigentliche App. Kein veröffentlichter Port: sie teilt sich das Netz mit dem Sidecar
+  # und ist nur über Tailscale Serve/Funnel erreichbar.
+  winterliga:
+    build: .
+    container_name: winterliga
+    network_mode: service:ts-winterliga
+    depends_on:
+      - ts-winterliga
+    environment:
+      - ORGA_PASSWORD=${ORGA_PASSWORD}
+    volumes:
+      - ./winterliga-data:/data:Z
+    restart: unless-stopped
+    # Security Hardening:
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 100
+    mem_limit: 256m
+
+# Festes Subnetz: /etc/nftables/funnel-isolation.nft trennt es von LAN, Host und Tailnet.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.11.0/24

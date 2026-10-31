@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Winterliga Dresden</title>
+<meta name="description" content="Bike-Polo-Winterliga Dresden: Begegnungen, Ergebnisse und Tabelle.">
+<link rel="preload" href="fonts/barlow-condensed-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%23DD5428%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header class="board">
+    <div class="board-top">
+      <div class="eyebrow">Bike Polo Dresden · 2x2 · Best of 5 · Winter 2026/27</div>
+      <div class="orga" id="orga">
+        <span id="orga-off"><button class="ghost" type="button" id="login-open">Orga-Login</button></span>
+        <span id="orga-on" hidden><span class="tag">Orga</span> <button class="ghost" type="button" id="logout">Abmelden</button></span>
+      </div>
+    </div>
+    <h1>Winter<span>liga</span></h1>
+    <div class="summary" id="summary">Lade Spielstände …</div>
+  </header>
+
+  <form class="inline panel" id="login-form" hidden>
+    <div class="field"><label for="login-pass">Orga-Passwort</label><input id="login-pass" type="password" autocomplete="current-password"></div>
+    <button class="primary" type="submit">Anmelden</button>
+    <button class="ghost" type="button" id="login-cancel">Abbrechen</button>
+    <p class="err full" id="login-err" hidden></p>
+  </form>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="court">
+    <div class="col main">
+      <section>
+        <h2>Begegnungen <small id="series-count"></small></h2>
+        <form class="inline panel boxed" id="series-form" hidden>
+          <div class="field"><label for="series-a">Team A</label><select id="series-a"></select></div>
+          <div class="field"><label for="series-b">Team B</label><select id="series-b"></select></div>
+          <div class="field date"><label for="series-date">Datum (optional)</label><input id="series-date" type="date"></div>
+          <button class="primary" type="submit">Begegnung anlegen</button>
+          <p class="err full" id="series-err" hidden></p>
+        </form>
+        <div class="series-list" id="series"></div>
+      </section>
+    </div>
+
+    <div class="col side">
+      <section>
+        <h2>Tabelle</h2>
+        <div class="panel scroll" id="standings"></div>
+        <p class="note">Punkte pro abgeschlossener Begegnung: Sieg 2, Unentschieden 1, Niederlage 0. Die erste Begegnung zweier Teams bringt beiden +1. Bei Punktgleichheit entscheiden gewonnene Begegnungen, dann Spiel- und Tordifferenz. Begegn. und Spiele stehen als Siege–Unentschieden–Niederlagen.</p>
+      </section>
+
+      <section>
+        <h2>Direktvergleich</h2>
+        <div class="panel scroll" id="matrix"></div>
+        <div class="legend"><span>Zeile gegen Spalte, Siege in der Begegnung</span><span class="cb">gewonnen</span><span class="ca">verloren</span><span class="lg-draw">unentschieden</span><span class="lg-live">läuft</span></div>
+      </section>
+
+      <section>
+        <h2>Teams <small id="team-count"></small></h2>
+        <form class="inline" id="team-form" hidden>
+          <div class="field"><label for="team-name">Teamname</label><input id="team-name" maxlength="40" autocomplete="off" placeholder="Name des Teams"></div>
+          <div class="field wide"><label for="team-players">Spieler (optional, 2, mit Komma getrennt)</label><input id="team-players" maxlength="200" autocomplete="off" placeholder="z. B. Anna, Ben"></div>
+          <button class="primary" type="submit">Team hinzufügen</button>
+          <p class="err full" id="team-err" hidden></p>
+        </form>
+        <div class="panel" id="teams"></div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="foot">Ergebnisse trägt die Orga ein. Die Seite aktualisiert sich von selbst.</footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Allowlist: everything is ignored unless it is listed below, so runtime data
+# and secrets can never be committed by accident. To version a new file, add a
+# line for it. Files inside a subfolder also need that folder's lines.
+/*
+!/.gitignore
+!/.dockerignore
+!/Dockerfile
+!/README.md
+!/compose.yaml
+!/public/
+!/seed.json
+!/server.js
+!/ts-config/
+
+# Never version these, even inside allowed folders.
+.env
+*.key
+*.pem
+*secret*
+*token*
