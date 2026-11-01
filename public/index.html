@@ -29,7 +29,7 @@
     <a href="#tabelle" data-view="tabelle" aria-current="page">Tabelle</a>
     <a href="#begegnungen" data-view="begegnungen">Begegnungen</a>
     <a href="#teams" data-view="teams">Teams</a>
-    <a href="#regeln" data-view="regeln">Regeln</a>
+    <button class="rules-toggle" id="rules-toggle" type="button" data-act="rules" aria-expanded="false" aria-controls="rules">Regeln</button>
   </nav>
 
   <form class="inline panel" id="login-form" hidden>
@@ -52,13 +52,25 @@
         <section>
           <h2>Tabelle</h2>
           <div class="panel scroll" id="standings"></div>
-          <p class="note">Sieg 2, Unentschieden 1, Niederlage 0, Erstbegegnung +1. Begegn. und Spiele stehen als Siege–Unentschieden–Niederlagen. <a href="#regeln">Alle Regeln</a></p>
+          <p class="note">Sieg 2, Unentschieden 1, Niederlage 0, Erstbegegnung +1. Begegn. und Spiele stehen als Siege–Unentschieden–Niederlagen. <a href="#regeln" data-act="rules">Alle Regeln</a></p>
         </section>
 
         <section>
           <h2>Direktvergleich</h2>
           <div class="panel scroll" id="matrix"></div>
           <div class="legend"><span>Zeile gegen Spalte, Spielstand der Begegnung (pro Spiel: Sieg 1, remis je 0.5)</span><span class="cb">gewonnen</span><span class="ca">verloren</span><span class="lg-draw">unentschieden</span><span class="lg-live">läuft</span></div>
+        </section>
+      </div>
+
+      <div class="pair">
+        <section id="recent-box" hidden>
+          <h2>Letzte Ergebnisse</h2>
+          <div class="panel recent" id="recent"></div>
+        </section>
+
+        <section id="facts-box" hidden>
+          <h2>Saison in Zahlen</h2>
+          <div class="tiles" id="facts"></div>
         </section>
       </div>
     </div>
@@ -91,36 +103,41 @@
         <div id="teams"></div>
       </section>
     </div>
-
-    <div class="view" id="view-regeln" hidden>
-      <section>
-        <h2>Punkte für die Tabelle</h2>
-        <div class="tiles">
-          <div class="tile panel"><b>2</b><span>Sieg</span></div>
-          <div class="tile panel"><b>1</b><span>Unentschieden</span></div>
-          <div class="tile panel"><b>0</b><span>Niederlage</span></div>
-          <div class="tile panel bonus"><b>+1</b><span>Erstbegegnung</span></div>
-        </div>
-        <p class="note">Für die Tabelle zählt nur der Ausgang der Begegnung, nicht wie hoch sie gewonnen wurde. Punkte gibt es, sobald die Begegnung entschieden ist. Die erste Begegnung zweier Teams bringt beiden +1, egal wie sie ausgeht.</p>
-      </section>
-
-      <section>
-        <h2>So läuft die Liga</h2>
-        <div class="rules">
-          <article class="rule panel">
-            <h3>Teams</h3>
-            <p>Ein Team hat bis zu 3 Spieler. Gespielt wird immer 2 gegen 2. Hat ein Team 3 Spieler, legt es beim Start der Begegnung fest, welche 2 spielen. Während der Begegnung wird nicht gewechselt.</p>
-          </article>
-          <article class="rule panel">
-            <h3>Begegnung</h3>
-            <p>Eine Begegnung geht über maximal 5 Spiele (Best of 5). Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch unentschieden enden.</p>
-          </article>
-        </div>
-      </section>
-    </div>
   </main>
 
   <footer class="foot">Bike Polo ist immer noch ok</footer>
 </div>
+
+<aside class="rules-side" id="rules" aria-labelledby="rules-title">
+  <div class="rules-head">
+    <h2 id="rules-title">Regeln</h2>
+    <button class="ghost" id="rules-close" type="button" data-act="rules">Schließen</button>
+  </div>
+
+  <section>
+    <h3>Punkte für die Tabelle</h3>
+    <div class="tiles">
+      <div class="tile panel"><b>2</b><span>Sieg</span></div>
+      <div class="tile panel"><b>1</b><span>Unentschieden</span></div>
+      <div class="tile panel"><b>0</b><span>Niederlage</span></div>
+      <div class="tile panel bonus"><b>+1</b><span>Erstbegegnung</span></div>
+    </div>
+    <p class="note">Für die Tabelle zählt nur der Ausgang der Begegnung, nicht wie hoch sie gewonnen wurde. Punkte gibt es, sobald die Begegnung entschieden ist. Die erste Begegnung zweier Teams bringt beiden +1, egal wie sie ausgeht.</p>
+  </section>
+
+  <section>
+    <h3>So läuft die Liga</h3>
+    <div class="rules">
+      <article class="rule panel">
+        <h4>Teams</h4>
+        <p>Ein Team hat bis zu 3 Spieler. Gespielt wird immer 2 gegen 2. Hat ein Team 3 Spieler, legt es beim Start der Begegnung fest, welche 2 spielen. Während der Begegnung wird nicht gewechselt.</p>
+      </article>
+      <article class="rule panel">
+        <h4>Begegnung</h4>
+        <p>Eine Begegnung geht über maximal 5 Spiele (Best of 5). Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch unentschieden enden.</p>
+      </article>
+    </div>
+  </section>
+</aside>
 </body>
 </html>

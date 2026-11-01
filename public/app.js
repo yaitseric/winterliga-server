@@ -3,12 +3,13 @@
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const MAX_PLAYERS = 3;
-  const VIEWS = ["tabelle", "begegnungen", "teams", "regeln"];
+  const VIEWS = ["tabelle", "begegnungen", "teams"];
   const S = {
     teams: [], series: [], tLoaded: false, sLoaded: false,
     canWrite: false, key: null, etag: null, offline: false,
     open: new Set(), editTeam: null, confirm: null, busy: new Set(), msg: {},
     pick: { a: [], b: [] }, pickHtml: { a: "", b: "" },
+    view: VIEWS[0], rules: false, rulesPushed: false, scrollTo: null,
   };
 
   // ---------- Server ----------
@@ -156,6 +157,8 @@
     $("#series-a").innerHTML = opts; $("#series-b").innerHTML = opts;
 
     renderLive(loaded);
+    renderRecent(loaded);
+    renderFacts(loaded);
     renderSeries(loaded);
     renderStandings(loaded);
     renderMatrix(loaded);
@@ -192,7 +195,7 @@
           : "Wähle oben zwei Teams und lege die erste Begegnung an. Jede Begegnung geht über maximal fünf Spiele. Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch unentschieden enden.")}</div>`;
       return;
     }
-    const list = [...S.series].sort((x, y) => String(y.date || "").localeCompare(String(x.date || "")) || (y.createdAt || 0) - (x.createdAt || 0));
+    const list = [...S.series].sort(byNewest);
     const firsts = firstMeetings();
     box.innerHTML = [["live", "Läuft"], ["open", "Angesetzt"], ["done", "Entschieden"]].map(([state, title]) => {
       const cards = list.filter((s) => stats(s).state === state);
@@ -210,19 +213,53 @@
         <span class="tname ta">${esc(teamName(s.a))}</span>
         <span class="sscore"><span class="ca">${st.pa}</span><span class="x">:</span><span class="cb">${st.pb}</span></span>
         <span class="tname tb">${esc(teamName(s.b))}</span>
-        <span class="meta"><span class="live-dot" aria-hidden="true"></span>${pipsOf(s, st)}<span>${st.n}/5 Spiele</span></span>
+        <span class="meta">${pipsOf(s, st)}<span>${st.n}/5 Spiele</span></span>
       </a>`;
     }).join("");
+  }
+
+  function renderRecent(loaded) {
+    const done = loaded ? S.series.filter((s) => stats(s).done).sort(byNewest).slice(0, 3) : [];
+    $("#recent-box").hidden = !done.length;
+    $("#recent").innerHTML = done.map((s) => {
+      const st = stats(s);
+      return `<a class="result" href="#begegnungen" data-act="openseries" data-id="${esc(s.id)}">
+        <span class="rdate">${s.date ? fmtDate(s.date).slice(0, 6) : ""}</span>
+        <span class="rteam ta${st.winner === "a" ? " won" : ""}">${esc(teamName(s.a))}</span>
+        <span class="rscore"><span class="ca">${st.pa}</span>:<span class="cb">${st.pb}</span></span>
+        <span class="rteam tb${st.winner === "b" ? " won" : ""}">${esc(teamName(s.b))}</span>
+      </a>`;
+    }).join("");
+  }
+
+  function renderFacts(loaded) {
+    const games = loaded ? S.series.flatMap((s) => s.games.map((g) => ({ ...g, s }))) : [];
+    $("#facts-box").hidden = !games.length;
+    if (!games.length) return;
+    const goals = games.reduce((n, g) => n + g.a + g.b, 0);
+    const top = standings().reduce((best, r) => (r.gf > best.gf ? r : best));
+    // Höchster Sieg nach Tordifferenz, bei Gleichstand das torreichere Spiel.
+    const big = games.filter((g) => g.a !== g.b).sort((x, y) => Math.abs(y.a - y.b) - Math.abs(x.a - x.b) || (y.a + y.b) - (x.a + x.b))[0];
+    const tile = (value, label, sub) => `<div class="tile panel"><b>${value}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
+    $("#facts").innerHTML = [
+      tile(goals, "Tore", `in ${games.length} ${games.length === 1 ? "Spiel" : "Spielen"}`),
+      tile(Math.round(goals / games.length * 10) / 10, "Tore pro Spiel"),
+      big ? tile(`${Math.max(big.a, big.b)}:${Math.min(big.a, big.b)}`, "Höchster Sieg", `${esc(teamName(big.a > big.b ? big.s.a : big.s.b))} gegen ${esc(teamName(big.a > big.b ? big.s.b : big.s.a))}`) : "",
+      tile(top.gf, "Meiste Tore", esc(top.name)),
+    ].join("");
   }
 
   function pipsOf(s, st) {
     const pips = Array.from({ length: 5 }, (_, i) => {
       const g = (s.games || [])[i];
       if (g) return `<span class="pip ${g.a > g.b ? "a" : g.b > g.a ? "b" : "d"}" title="Spiel ${i + 1}: ${g.a}:${g.b}"></span>`;
+      if (st.state === "live" && i === st.n) return `<span class="pip next" title="Nächstes Spiel"></span>`;
       return `<span class="pip${st.done ? " skip" : ""}"></span>`;
     }).join("");
     return `<span class="pips" aria-label="${st.n} von 5 Spielen gespielt">${pips}</span>`;
   }
+
+  const byNewest = (x, y) => String(y.date || "").localeCompare(String(x.date || "")) || (y.createdAt || 0) - (x.createdAt || 0);
 
   function fmtDate(d) {
     if (!d) return "";
@@ -419,7 +456,8 @@
     const { act, id } = el.dataset, i = Number(el.dataset.i);
     if (act !== "delseries" && act !== "delteam" && S.confirm) S.confirm = null;
     if (act === "toggle") { S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); }
-    else if (act === "openseries") { S.open.add(id); render(); }
+    else if (act === "openseries") { S.open.add(id); S.scrollTo = id; render(); }
+    else if (act === "rules") { ev.preventDefault(); setRules(!S.rules); }
     else if (act === "addgame") addGame(id);
     else if (act === "editteam") { S.editTeam = S.editTeam === id ? null : id; delete S.msg["t:" + id]; render(); if (S.editTeam) { const el = document.getElementById("p-" + id); if (el) el.focus(); } }
     else if (act === "addplayer") addPlayer(id);
@@ -450,6 +488,7 @@
   });
   document.addEventListener("keydown", (ev) => {
     const el = ev.target;
+    if (ev.key === "Escape" && S.rules) setRules(false);
     if (ev.key === "Enter" && el.dataset && el.dataset.act === "newkey") { ev.preventDefault(); addGame(el.dataset.id); }
     if (ev.key === "Enter" && el.dataset && el.dataset.act === "playerkey") { ev.preventDefault(); addPlayer(el.dataset.id); }
   });
@@ -514,7 +553,10 @@
   // ---------- Bereiche ----------
   // Der Bereich steht in der Adresse, damit Links wie /#regeln und der Zurück-Knopf funktionieren.
   function showView() {
-    const hash = location.hash.slice(1), view = VIEWS.includes(hash) ? hash : VIEWS[0];
+    let hash = location.hash.slice(1);
+    // /#regeln ist ein Direktlink auf die Leiste: Sie geht auf, der Bereich dahinter bleibt.
+    if (hash === "regeln") { hash = S.view; history.replaceState(null, "", "#" + hash); setRules(true); }
+    const view = S.view = VIEWS.includes(hash) ? hash : VIEWS[0];
     VIEWS.forEach((v) => { $(`#view-${v}`).hidden = v !== view; });
     document.querySelectorAll(".tabs a").forEach((a) => {
       if (a.dataset.view === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
@@ -522,8 +564,25 @@
     // Die Reiter kleben oben: Beim Wechsel beginnt der neue Bereich direkt darunter statt mitten in der Seite.
     const top = $(".board").getBoundingClientRect().bottom + window.scrollY;
     if (window.scrollY > top) window.scrollTo(0, top);
+    const card = [...document.querySelectorAll("article.series")].find((a) => a.dataset.id === S.scrollTo);
+    if (card) { card.scrollIntoView({ block: "start" }); S.scrollTo = null; }
   }
   window.addEventListener("hashchange", showView);
+
+  // ---------- Regeln ----------
+  // Auf breiten Bildschirmen rückt die Seite zur Seite und bleibt bedienbar. Schmal bedeckt die Leiste alles,
+  // deshalb schließt sie dort der Zurück-Knopf, statt die Seite zu verlassen.
+  const rulesCover = window.matchMedia("(max-width: 860px)");
+  function setRules(open, fromHistory = false) {
+    if (open === S.rules) return;
+    S.rules = open;
+    document.body.classList.toggle("rules-open", open);
+    $("#rules-toggle").setAttribute("aria-expanded", String(open));
+    (open ? $("#rules-close") : $("#rules-toggle")).focus({ preventScroll: true });
+    if (open && rulesCover.matches) { history.pushState(null, ""); S.rulesPushed = true; }
+    else if (!open && S.rulesPushed) { S.rulesPushed = false; if (!fromHistory) history.back(); }
+  }
+  window.addEventListener("popstate", () => { if (S.rulesPushed) setRules(false, true); });
 
   // ---------- Start ----------
   showView();
