@@ -25,6 +25,13 @@
     <div class="summary" id="summary">Lade Spielstände …</div>
   </header>
 
+  <nav class="tabs" aria-label="Bereiche">
+    <a href="#tabelle" data-view="tabelle" aria-current="page">Tabelle</a>
+    <a href="#begegnungen" data-view="begegnungen">Begegnungen</a>
+    <a href="#teams" data-view="teams">Teams</a>
+    <a href="#regeln" data-view="regeln">Regeln</a>
+  </nav>
+
   <form class="inline panel" id="login-form" hidden>
     <div class="field"><label for="login-pass">Orga-Passwort</label><input id="login-pass" type="password" autocomplete="current-password"></div>
     <button class="primary" type="submit">Anmelden</button>
@@ -34,10 +41,31 @@
 
   <div id="banner" class="banner" hidden></div>
 
-  <div class="court">
-    <div class="col main">
+  <main>
+    <div class="view" id="view-tabelle">
+      <section id="live-box" hidden>
+        <h2>Läuft gerade</h2>
+        <div class="live-list" id="live"></div>
+      </section>
+
+      <div class="pair">
+        <section>
+          <h2>Tabelle</h2>
+          <div class="panel scroll" id="standings"></div>
+          <p class="note">Sieg 2, Unentschieden 1, Niederlage 0, Erstbegegnung +1. Begegn. und Spiele stehen als Siege–Unentschieden–Niederlagen. <a href="#regeln">Alle Regeln</a></p>
+        </section>
+
+        <section>
+          <h2>Direktvergleich</h2>
+          <div class="panel scroll" id="matrix"></div>
+          <div class="legend"><span>Zeile gegen Spalte, Spielstand der Begegnung (pro Spiel: Sieg 1, remis je 0.5)</span><span class="cb">gewonnen</span><span class="ca">verloren</span><span class="lg-draw">unentschieden</span><span class="lg-live">läuft</span></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="view" id="view-begegnungen" hidden>
       <section>
-        <h2>Begegnungen <small id="series-count"></small></h2>
+        <h2 class="sr">Begegnungen <small id="series-count"></small></h2>
         <form class="inline panel boxed" id="series-form" hidden>
           <div class="field"><label for="series-a">Team A</label><select id="series-a"></select></div>
           <div class="field"><label for="series-b">Team B</label><select id="series-b"></select></div>
@@ -51,31 +79,46 @@
       </section>
     </div>
 
-    <div class="col side">
+    <div class="view" id="view-teams" hidden>
       <section>
-        <h2>Tabelle</h2>
-        <div class="panel scroll" id="standings"></div>
-        <p class="note">Punkte pro abgeschlossener Begegnung: Sieg 2, Unentschieden 1, Niederlage 0. Die erste Begegnung zweier Teams bringt beiden +1. Bei Punktgleichheit entscheiden gewonnene Begegnungen, dann Spiel- und Tordifferenz. Begegn. und Spiele stehen als Siege–Unentschieden–Niederlagen.</p>
-      </section>
-
-      <section>
-        <h2>Direktvergleich</h2>
-        <div class="panel scroll" id="matrix"></div>
-        <div class="legend"><span>Zeile gegen Spalte, Spielstand der Begegnung (pro Spiel: Sieg 1, remis je 0.5)</span><span class="cb">gewonnen</span><span class="ca">verloren</span><span class="lg-draw">unentschieden</span><span class="lg-live">läuft</span></div>
-      </section>
-
-      <section>
-        <h2>Teams <small id="team-count"></small></h2>
-        <form class="inline" id="team-form" hidden>
+        <h2 class="sr">Teams <small id="team-count"></small></h2>
+        <form class="inline panel boxed" id="team-form" hidden>
           <div class="field"><label for="team-name">Teamname</label><input id="team-name" maxlength="40" autocomplete="off" placeholder="Name des Teams"></div>
           <div class="field wide"><label for="team-players">Spieler (optional, bis zu 3, mit Komma getrennt)</label><input id="team-players" maxlength="200" autocomplete="off" placeholder="z. B. Anna, Ben"></div>
           <button class="primary" type="submit">Team hinzufügen</button>
           <p class="err full" id="team-err" hidden></p>
         </form>
-        <div class="panel" id="teams"></div>
+        <div id="teams"></div>
       </section>
     </div>
-  </div>
+
+    <div class="view" id="view-regeln" hidden>
+      <section>
+        <h2>Punkte für die Tabelle</h2>
+        <div class="tiles">
+          <div class="tile panel"><b>2</b><span>Sieg</span></div>
+          <div class="tile panel"><b>1</b><span>Unentschieden</span></div>
+          <div class="tile panel"><b>0</b><span>Niederlage</span></div>
+          <div class="tile panel bonus"><b>+1</b><span>Erstbegegnung</span></div>
+        </div>
+        <p class="note">Für die Tabelle zählt nur der Ausgang der Begegnung, nicht wie hoch sie gewonnen wurde. Punkte gibt es, sobald die Begegnung entschieden ist. Die erste Begegnung zweier Teams bringt beiden +1, egal wie sie ausgeht.</p>
+      </section>
+
+      <section>
+        <h2>So läuft die Liga</h2>
+        <div class="rules">
+          <article class="rule panel">
+            <h3>Teams</h3>
+            <p>Ein Team hat bis zu 3 Spieler. Gespielt wird immer 2 gegen 2. Hat ein Team 3 Spieler, legt es beim Start der Begegnung fest, welche 2 spielen. Während der Begegnung wird nicht gewechselt.</p>
+          </article>
+          <article class="rule panel">
+            <h3>Begegnung</h3>
+            <p>Eine Begegnung geht über maximal 5 Spiele (Best of 5). Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch unentschieden enden.</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </main>
 
   <footer class="foot">Bike Polo ist immer noch ok</footer>
 </div>

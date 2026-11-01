@@ -3,6 +3,7 @@
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const MAX_PLAYERS = 3;
+  const VIEWS = ["tabelle", "begegnungen", "teams", "regeln"];
   const S = {
     teams: [], series: [], tLoaded: false, sLoaded: false,
     canWrite: false, key: null, etag: null, offline: false,
@@ -49,6 +50,11 @@
   // ---------- derived data ----------
   const playersOf = (id) => (S.teams.find((t) => t.id === id) || {}).players || [];
   const teamName = (id) => (S.teams.find((t) => t.id === id) || {}).name || "Gelöschtes Team";
+  // Kürzel für die Spaltenköpfe im Direktvergleich: Anfangsbuchstaben, bei einem Wort die ersten zwei Zeichen.
+  function initials(name) {
+    const words = name.trim().split(/\s+/).map((w) => Array.from(w));
+    return (words.length > 1 ? words.map((w) => w[0]).slice(0, 3) : words[0].slice(0, 2)).join("").toUpperCase();
+  }
   // Wer in der Begegnung spielt. Hatte das Team beim Anlegen noch keine 2 Spieler, gilt sein aktueller Stand.
   function lineupOf(s, side) {
     const lineup = side === "a" ? s.lineupA : s.lineupB;
@@ -149,6 +155,7 @@
     const opts = '<option value="">Team wählen</option>' + [...S.teams].sort((a, b) => a.name.localeCompare(b.name, "de")).map((t) => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
     $("#series-a").innerHTML = opts; $("#series-b").innerHTML = opts;
 
+    renderLive(loaded);
     renderSeries(loaded);
     renderStandings(loaded);
     renderMatrix(loaded);
@@ -181,17 +188,40 @@
     if (!S.series.length) {
       box.innerHTML = `<div class="panel">${emptyBox("Noch keine Begegnungen",
         S.teams.length < 2
-          ? "Lege zuerst mindestens zwei Teams an (rechts unter Teams). Danach kannst du hier Paarungen anlegen und jedes Spiel der Begegnung (Best of 5) eintragen."
+          ? "Lege zuerst mindestens zwei Teams an (im Bereich Teams). Danach kannst du hier Paarungen anlegen und jedes Spiel der Begegnung (Best of 5) eintragen."
           : "Wähle oben zwei Teams und lege die erste Begegnung an. Jede Begegnung geht über maximal fünf Spiele. Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch unentschieden enden.")}</div>`;
       return;
     }
-    const order = { live: 0, open: 1, done: 2 };
-    const list = [...S.series].sort((x, y) => {
-      const a = stats(x), b = stats(y);
-      return order[a.state] - order[b.state] || String(y.date || "").localeCompare(String(x.date || "")) || (y.createdAt || 0) - (x.createdAt || 0);
-    });
+    const list = [...S.series].sort((x, y) => String(y.date || "").localeCompare(String(x.date || "")) || (y.createdAt || 0) - (x.createdAt || 0));
     const firsts = firstMeetings();
-    box.innerHTML = list.map((s) => seriesCard(s, firsts)).join("");
+    box.innerHTML = [["live", "Läuft"], ["open", "Angesetzt"], ["done", "Entschieden"]].map(([state, title]) => {
+      const cards = list.filter((s) => stats(s).state === state);
+      return cards.length ? `<div class="series-group"><h3>${title} <small>${cards.length}</small></h3><div class="series-grid">${cards.map((s) => seriesCard(s, firsts)).join("")}</div></div>` : "";
+    }).join("");
+  }
+
+  // Laufende Begegnungen direkt auf der Startseite; ein Klick öffnet die Karte im Bereich Begegnungen.
+  function renderLive(loaded) {
+    const live = loaded ? S.series.filter((s) => stats(s).state === "live") : [];
+    $("#live-box").hidden = !live.length;
+    $("#live").innerHTML = live.map((s) => {
+      const st = stats(s);
+      return `<a class="live-row panel" href="#begegnungen" data-act="openseries" data-id="${esc(s.id)}">
+        <span class="tname ta">${esc(teamName(s.a))}</span>
+        <span class="sscore"><span class="ca">${st.pa}</span><span class="x">:</span><span class="cb">${st.pb}</span></span>
+        <span class="tname tb">${esc(teamName(s.b))}</span>
+        <span class="meta"><span class="live-dot" aria-hidden="true"></span>${pipsOf(s, st)}<span>${st.n}/5 Spiele</span></span>
+      </a>`;
+    }).join("");
+  }
+
+  function pipsOf(s, st) {
+    const pips = Array.from({ length: 5 }, (_, i) => {
+      const g = (s.games || [])[i];
+      if (g) return `<span class="pip ${g.a > g.b ? "a" : g.b > g.a ? "b" : "d"}" title="Spiel ${i + 1}: ${g.a}:${g.b}"></span>`;
+      return `<span class="pip${st.done ? " skip" : ""}"></span>`;
+    }).join("");
+    return `<span class="pips" aria-label="${st.n} von 5 Spielen gespielt">${pips}</span>`;
   }
 
   function fmtDate(d) {
@@ -203,12 +233,7 @@
   function seriesCard(s, firsts) {
     const st = stats(s), open = S.open.has(s.id), busy = S.busy.has(s.id);
     const nameA = teamName(s.a), nameB = teamName(s.b), lineA = lineupOf(s, "a"), lineB = lineupOf(s, "b");
-    const pips = Array.from({ length: 5 }, (_, i) => {
-      const g = (s.games || [])[i];
-      if (g) return `<span class="pip ${g.a > g.b ? "a" : g.b > g.a ? "b" : "d"}" title="Spiel ${i + 1}: ${g.a}:${g.b}"></span>`;
-      return `<span class="pip${st.done ? " skip" : ""}"></span>`;
-    }).join("");
-    const chip = st.draw ? `<span class="chip done">unentschieden</span>` : st.state === "done" ? `<span class="chip done">entschieden</span>` : st.state === "live" ? `<span class="chip live">läuft</span>` : `<span class="chip">offen</span>`;
+    const chip = st.draw ? `<span class="chip done">unentschieden</span>` : "";
     let body = "";
     if (open) {
       const rows = (s.games || []).map((g, i) => {
@@ -243,7 +268,7 @@
         <span class="sscore"><span class="ca">${st.pa}</span><span class="x">:</span><span class="cb">${st.pb}</span></span>
         <span class="tname tb ${st.winner === "b" ? "won" : ""}">${esc(nameB)}</span>
         ${lineA.length || lineB.length ? `<span class="tplayers pa">${esc(lineA.join(" · "))}</span><span></span><span class="tplayers">${esc(lineB.join(" · "))}</span>` : ""}
-        <span class="meta"><span class="pips" aria-label="${st.n} von 5 Spielen gespielt">${pips}</span><span>${st.n}/5 Spiele${st.d ? ` · ${st.d} remis` : ""}</span>${chip}${firsts.has(s.id) ? `<span class="chip bonus" title="Erste Begegnung dieser Teams: +1 Punkt für beide">Erstbegegnung +1</span>` : ""}${s.date ? `<span>${fmtDate(s.date)}</span>` : ""}</span>
+        <span class="meta">${pipsOf(s, st)}<span>${st.n}/5 Spiele${st.d ? ` · ${st.d} remis` : ""}</span>${chip}${firsts.has(s.id) ? `<span class="chip bonus" title="Erste Begegnung dieser Teams: +1 Punkt für beide">Erstbegegnung +1</span>` : ""}${s.date ? `<span>${fmtDate(s.date)}</span>` : ""}</span>
       </button>${body}</article>`;
   }
 
@@ -254,9 +279,9 @@
     const sign = (n) => (n > 0 ? `+${n}` : `${n}`);
     const rows = standings().map((r, i) => {
       const gd = r.gf - r.gag;
-      return `<tr><td class="rank">${i + 1}</td><td class="l team">${esc(r.name)}</td><td class="pts" title="${r.pts - r.bonus} aus Ergebnissen + ${r.bonus} Bonus">${r.pts}</td><td>${r.sw}–${r.sd}–${r.sl}</td><td>${r.gw}–${r.gd}–${r.gl}</td><td>${r.gf}:${r.gag}</td><td class="${gd > 0 ? "pos" : gd < 0 ? "neg" : ""}">${sign(gd)}</td></tr>`;
+      return `<tr><td class="rank">${i + 1}</td><td class="l team">${esc(r.name)}</td><td class="pts" title="${r.pts - r.bonus} aus Ergebnissen + ${r.bonus} Bonus">${r.pts}</td><td>${r.sw}–${r.sd}–${r.sl}</td><td class="opt">${r.gw}–${r.gd}–${r.gl}</td><td class="opt">${r.gf}:${r.gag}</td><td class="${gd > 0 ? "pos" : gd < 0 ? "neg" : ""}">${sign(gd)}</td></tr>`;
     }).join("");
-    box.innerHTML = `<table><thead><tr><th>#</th><th class="l">Team</th><th title="Punkte">Pkt</th><th title="Begegnungen gewonnen – unentschieden – verloren">Begegn.</th><th title="Spiele gewonnen – unentschieden – verloren">Spiele</th><th title="Tore geschossen : kassiert">Tore</th><th title="Tordifferenz: geschossene minus kassierte Tore">Tordiff.</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.innerHTML = `<table><thead><tr><th>#</th><th class="l">Team</th><th title="Punkte">Pkt</th><th title="Begegnungen gewonnen – unentschieden – verloren">Begegn.</th><th class="opt" title="Spiele gewonnen – unentschieden – verloren">Spiele</th><th class="opt" title="Tore geschossen : kassiert">Tore</th><th title="Tordifferenz: geschossene minus kassierte Tore">Tordiff.</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   function renderMatrix(loaded) {
@@ -264,7 +289,7 @@
     if (!loaded) { box.innerHTML = emptyBox("Lade Paarungen", "Einen Moment."); return; }
     if (S.teams.length < 2) { box.innerHTML = emptyBox("Noch keine Paarungen", "Ab zwei Teams siehst du hier, wer schon gegen wen gespielt hat."); return; }
     const teams = standings();
-    const head = `<tr><th></th>${teams.map((t) => `<th class="colh" title="${esc(t.name)}">${esc(t.name)}</th>`).join("")}</tr>`;
+    const head = `<tr><th></th>${teams.map((t) => `<th class="colh" title="${esc(t.name)}">${esc(initials(t.name))}</th>`).join("")}</tr>`;
     const body = teams.map((r) => {
       const cells = teams.map((c) => {
         if (r.id === c.id) return `<td class="self" aria-label="—"></td>`;
@@ -277,7 +302,7 @@
         const cls = parts.length === 1 ? parts[0].cls : "";
         return `<td class="${cls}">${parts.map((p) => (parts.length > 1 ? `<span class="${p.cls}">${p.txt}</span>` : p.txt)).join(" / ")}</td>`;
       }).join("");
-      return `<tr><th class="rowh">${esc(r.name)}</th>${cells}</tr>`;
+      return `<tr><th class="rowh"><span class="ini">${esc(initials(r.name))}</span>${esc(r.name)}</th>${cells}</tr>`;
     }).join("");
     box.innerHTML = `<table class="matrix"><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
@@ -285,8 +310,11 @@
   function renderTeams(loaded) {
     const box = $("#teams");
     if (!loaded) { box.innerHTML = emptyBox("Lade Teams", "Einen Moment."); return; }
-    if (!S.teams.length) { box.innerHTML = emptyBox("Noch keine Teams", S.canWrite ? "Trag oben das erste Team der Winterliga ein." : "Es wurden noch keine Teams angelegt."); return; }
+    if (!S.teams.length) { box.innerHTML = `<div class="panel">${emptyBox("Noch keine Teams", S.canWrite ? "Trag oben das erste Team der Winterliga ein." : "Es wurden noch keine Teams angelegt.")}</div>`; return; }
+    const table = standings();
     const list = [...S.teams].sort((a, b) => a.name.localeCompare(b.name, "de")).map((t) => {
+      const r = table.find((x) => x.id === t.id);
+      const tstats = `<div class="tstats"><span>Platz <b>${table.indexOf(r) + 1}</b></span><span><b>${r.pts}</b> Punkte</span><span>Begegn. <b>${r.sw}–${r.sd}–${r.sl}</b></span><span>Spiele <b>${r.gw}–${r.gd}–${r.gl}</b></span><span>Tore <b>${r.gf}:${r.gag}</b></span></div>`;
       const used = S.series.some((s) => s.a === t.id || s.b === t.id);
       const confirming = S.confirm === "t:" + t.id;
       const btn = S.canWrite
@@ -300,7 +328,7 @@
       const plist = t.players.length ? `<div class="plist">${chips}</div>` : `<div class="plist none">Keine Spieler eingetragen</div>`;
       const add = editing && t.players.length < MAX_PLAYERS ? `<div class="padd"><input id="p-${esc(t.id)}" maxlength="40" autocomplete="off" placeholder="Spieler hinzufügen" aria-label="Spieler für ${esc(t.name)}" data-act="playerkey" data-id="${esc(t.id)}"><button class="primary" type="button" data-act="addplayer" data-id="${esc(t.id)}" ${busy ? "disabled" : ""}>Hinzufügen</button></div>` : "";
       const msg = S.msg[key] ? `<p class="err">${esc(S.msg[key])}</p>` : "";
-      return `<li><div class="trow"><span class="tn">${esc(t.name)}</span><span class="acts">${edit}${btn}</span></div>${plist}${add}${msg}</li>`;
+      return `<li class="panel"><div class="trow"><span class="tn">${esc(t.name)}</span><span class="acts">${edit}${btn}</span></div>${plist}${tstats}${add}${msg}</li>`;
     }).join("");
     box.innerHTML = `<ul class="teamlist">${list}</ul>`;
   }
@@ -391,6 +419,7 @@
     const { act, id } = el.dataset, i = Number(el.dataset.i);
     if (act !== "delseries" && act !== "delteam" && S.confirm) S.confirm = null;
     if (act === "toggle") { S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); }
+    else if (act === "openseries") { S.open.add(id); render(); }
     else if (act === "addgame") addGame(id);
     else if (act === "editteam") { S.editTeam = S.editTeam === id ? null : id; delete S.msg["t:" + id]; render(); if (S.editTeam) { const el = document.getElementById("p-" + id); if (el) el.focus(); } }
     else if (act === "addplayer") addPlayer(id);
@@ -482,7 +511,22 @@
     } catch (_) { err.textContent = "Keine Verbindung zum Server."; err.hidden = false; }
   });
 
+  // ---------- Bereiche ----------
+  // Der Bereich steht in der Adresse, damit Links wie /#regeln und der Zurück-Knopf funktionieren.
+  function showView() {
+    const hash = location.hash.slice(1), view = VIEWS.includes(hash) ? hash : VIEWS[0];
+    VIEWS.forEach((v) => { $(`#view-${v}`).hidden = v !== view; });
+    document.querySelectorAll(".tabs a").forEach((a) => {
+      if (a.dataset.view === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    // Die Reiter kleben oben: Beim Wechsel beginnt der neue Bereich direkt darunter statt mitten in der Seite.
+    const top = $(".board").getBoundingClientRect().bottom + window.scrollY;
+    if (window.scrollY > top) window.scrollTo(0, top);
+  }
+  window.addEventListener("hashchange", showView);
+
   // ---------- Start ----------
+  showView();
   render();
   refresh();
   setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 15000);
