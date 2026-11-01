@@ -9,15 +9,15 @@
     canWrite: false, key: null, etag: null, offline: false,
     open: new Set(), editTeam: null, confirm: null, busy: new Set(), msg: {},
     pick: { a: [], b: [] }, pickHtml: { a: "", b: "" },
-    view: VIEWS[0], rules: false, rulesPushed: false, scrollTo: null,
+    view: VIEWS[0], rules: false, scrollTo: null,
   };
 
   // ---------- Server ----------
   const KEY_STORE = "winterliga-orga";
-  try { S.key = localStorage.getItem(KEY_STORE); S.canWrite = !!S.key; } catch (_) {}
+  try { S.key = localStorage.getItem(KEY_STORE); S.canWrite = !!S.key; } catch (_) { }
   function setKey(k) {
     S.key = k; S.canWrite = !!k;
-    try { if (k) localStorage.setItem(KEY_STORE, k); else localStorage.removeItem(KEY_STORE); } catch (_) {}
+    try { if (k) localStorage.setItem(KEY_STORE, k); else localStorage.removeItem(KEY_STORE); } catch (_) { }
   }
   function applyState(st) {
     S.teams = (st.teams || []).map((t) => ({ id: t.id, name: String(t.name || "Team"), players: Array.isArray(t.players) ? t.players : [] }));
@@ -123,7 +123,7 @@
     });
     if (focus) {
       const el = document.getElementById(focus.id);
-      if (el) { el.focus(); try { if (focus.s != null) el.setSelectionRange(focus.s, focus.e); } catch (_) {} }
+      if (el) { el.focus(); try { if (focus.s != null) el.setSelectionRange(focus.s, focus.e); } catch (_) { } }
     }
   }
 
@@ -226,7 +226,7 @@
       return `<a class="result" href="#begegnungen" data-act="openseries" data-id="${esc(s.id)}">
         <span class="rdate">${s.date ? fmtDate(s.date).slice(0, 6) : ""}</span>
         <span class="rteam ta${st.winner === "a" ? " won" : ""}">${esc(teamName(s.a))}</span>
-        <span class="rscore"><span class="ca">${st.pa}</span>:<span class="cb">${st.pb}</span></span>
+        <span class="rscore"><span class="ca">${st.pa}</span> : <span class="cb">${st.pb}</span></span>
         <span class="rteam tb${st.winner === "b" ? " won" : ""}">${esc(teamName(s.b))}</span>
       </a>`;
     }).join("");
@@ -237,15 +237,16 @@
     $("#facts-box").hidden = !games.length;
     if (!games.length) return;
     const goals = games.reduce((n, g) => n + g.a + g.b, 0);
-    const top = standings().reduce((best, r) => (r.gf > best.gf ? r : best));
-    // Höchster Sieg nach Tordifferenz, bei Gleichstand das torreichere Spiel.
-    const big = games.filter((g) => g.a !== g.b).sort((x, y) => Math.abs(y.a - y.b) - Math.abs(x.a - x.b) || (y.a + y.b) - (x.a + x.b))[0];
+    const draws = games.filter((g) => g.a === g.b).length;
+    const allPairs = S.teams.length * (S.teams.length - 1) / 2;
+    const playedPairs = new Set(S.series.filter((s) => s.games.length).map((s) => [s.a, s.b].sort().join("|"))).size;
+    const inGames = `in ${games.length} ${games.length === 1 ? "Spiel" : "Spielen"}`;
     const tile = (value, label, sub) => `<div class="tile panel"><b>${value}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
     $("#facts").innerHTML = [
-      tile(goals, "Tore", `in ${games.length} ${games.length === 1 ? "Spiel" : "Spielen"}`),
+      tile(goals, "Tore", inGames),
       tile(Math.round(goals / games.length * 10) / 10, "Tore pro Spiel"),
-      big ? tile(`${Math.max(big.a, big.b)}:${Math.min(big.a, big.b)}`, "Höchster Sieg", `${esc(teamName(big.a > big.b ? big.s.a : big.s.b))} gegen ${esc(teamName(big.a > big.b ? big.s.b : big.s.a))}`) : "",
-      tile(top.gf, "Meiste Tore", esc(top.name)),
+      tile(draws, "Remis", inGames),
+      tile(`${playedPairs} / ${allPairs}`, "Paarungen", "haben schon gespielt"),
     ].join("");
   }
 
@@ -334,7 +335,7 @@
         if (!ss.length) return `<td class="none">–</td>`;
         const parts = ss.map((s) => {
           const st = stats(s), mine = s.a === r.id ? st.pa : st.pb, theirs = s.a === r.id ? st.pb : st.pa;
-          return { txt: st.n ? `${mine}:${theirs}` : "angesetzt", cls: st.done ? (mine > theirs ? "w" : mine < theirs ? "l" : "draw") : st.n ? "live" : "none" };
+          return { txt: st.n ? `${mine} : ${theirs}` : "angesetzt", cls: st.done ? (mine > theirs ? "w" : mine < theirs ? "l" : "draw") : st.n ? "live" : "none" };
         });
         const cls = parts.length === 1 ? parts[0].cls : "";
         return `<td class="${cls}">${parts.map((p) => (parts.length > 1 ? `<span class="${p.cls}">${p.txt}</span>` : p.txt)).join(" / ")}</td>`;
@@ -488,7 +489,6 @@
   });
   document.addEventListener("keydown", (ev) => {
     const el = ev.target;
-    if (ev.key === "Escape" && S.rules) setRules(false);
     if (ev.key === "Enter" && el.dataset && el.dataset.act === "newkey") { ev.preventDefault(); addGame(el.dataset.id); }
     if (ev.key === "Enter" && el.dataset && el.dataset.act === "playerkey") { ev.preventDefault(); addPlayer(el.dataset.id); }
   });
@@ -554,35 +554,33 @@
   // Der Bereich steht in der Adresse, damit Links wie /#regeln und der Zurück-Knopf funktionieren.
   function showView() {
     let hash = location.hash.slice(1);
-    // /#regeln ist ein Direktlink auf die Leiste: Sie geht auf, der Bereich dahinter bleibt.
+    // /#regeln ist ein Direktlink auf den Regel-Block: Er klappt auf, der Bereich darunter bleibt.
     if (hash === "regeln") { hash = S.view; history.replaceState(null, "", "#" + hash); setRules(true); }
     const view = S.view = VIEWS.includes(hash) ? hash : VIEWS[0];
     VIEWS.forEach((v) => { $(`#view-${v}`).hidden = v !== view; });
     document.querySelectorAll(".tabs a").forEach((a) => {
       if (a.dataset.view === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
-    // Die Reiter kleben oben: Beim Wechsel beginnt der neue Bereich direkt darunter statt mitten in der Seite.
-    const top = $(".board").getBoundingClientRect().bottom + window.scrollY;
-    if (window.scrollY > top) window.scrollTo(0, top);
+    scrollToTabs();
     const card = [...document.querySelectorAll("article.series")].find((a) => a.dataset.id === S.scrollTo);
     if (card) { card.scrollIntoView({ block: "start" }); S.scrollTo = null; }
   }
   window.addEventListener("hashchange", showView);
 
+  // Die Reiter kleben oben, der Inhalt darunter kann längst weggescrollt sein: Zurück an den Anfang direkt unter den Reitern.
+  function scrollToTabs() {
+    const top = $(".board").getBoundingClientRect().bottom + window.scrollY;
+    if (window.scrollY > top) window.scrollTo(0, top);
+  }
+
   // ---------- Regeln ----------
-  // Auf breiten Bildschirmen rückt die Seite zur Seite und bleibt bedienbar. Schmal bedeckt die Leiste alles,
-  // deshalb schließt sie dort der Zurück-Knopf, statt die Seite zu verlassen.
-  const rulesCover = window.matchMedia("(max-width: 860px)");
-  function setRules(open, fromHistory = false) {
+  function setRules(open) {
     if (open === S.rules) return;
     S.rules = open;
     document.body.classList.toggle("rules-open", open);
     $("#rules-toggle").setAttribute("aria-expanded", String(open));
-    (open ? $("#rules-close") : $("#rules-toggle")).focus({ preventScroll: true });
-    if (open && rulesCover.matches) { history.pushState(null, ""); S.rulesPushed = true; }
-    else if (!open && S.rulesPushed) { S.rulesPushed = false; if (!fromHistory) history.back(); }
+    if (open) scrollToTabs();
   }
-  window.addEventListener("popstate", () => { if (S.rulesPushed) setRules(false, true); });
 
   // ---------- Start ----------
   showView();

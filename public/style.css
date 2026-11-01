@@ -58,23 +58,23 @@ h1 span { color: var(--a); }
 .tabs a:hover, .rules-toggle:hover { color: var(--ink); }
 .tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--a); }
 .rules-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding-right: 2px; }
-.rules-toggle::after { content: ""; width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+.rules-toggle::after { content: ""; width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; margin-top: -3px; transform: rotate(-45deg); }
 .rules-toggle[aria-expanded="true"] { color: var(--ink); border-bottom-color: var(--a); }
-.rules-toggle[aria-expanded="true"]::after { transform: rotate(225deg); }
+.rules-toggle[aria-expanded="true"]::after { margin-top: 3px; transform: rotate(135deg); }
 @media (max-width: 460px) { .tabs { justify-content: space-between; gap: 8px; } .tabs a, .rules-toggle { font-size: 19px; } .rules-toggle { margin-left: 0; gap: 5px; } }
 
-/* Regeln: breit neben der Seite, schmal über der ganzen Seite. */
-.rules-side { position: fixed; inset: 0 0 0 auto; z-index: 20; box-sizing: border-box; width: 380px; display: grid; gap: 24px; align-content: start; padding: 20px 16px 32px; overflow-y: auto; overscroll-behavior: contain; background: var(--bg); border-left: 3px solid var(--ink); transform: translateX(100%); visibility: hidden; }
-.rules-open .rules-side { transform: none; visibility: visible; }
-.rules-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.rules-head button { padding: 4px 10px; font-size: 13px; }
-.rules-side section > h3 { font-family: var(--f-mono); font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
-@media (min-width: 861px) { body.rules-open { padding-right: 380px; } }
-@media (max-width: 860px) { .rules-side { width: 100%; border-left: 0; } }
+/* Regeln: klappen direkt unter den Reitern auf und schieben den Inhalt nach unten.
+   Innenabstände sitzen auf den Abschnitten, weil .rules-body sonst eingeklappt nicht auf Höhe 0 käme. */
+.wrap > .rules-fold { margin-top: 0; }
+.rules-fold { display: grid; grid-template-rows: 0fr; visibility: hidden; }
+.rules-open .rules-fold { grid-template-rows: 1fr; visibility: visible; }
+.rules-body { min-height: 0; overflow: hidden; display: grid; gap: 20px; align-content: start; }
+.rules-body > section:first-of-type { padding-top: 18px; }
+.rules-body > section:last-of-type { padding-bottom: 20px; border-bottom: 3px solid var(--ink); }
+.rules-body section > h3 { font-family: var(--f-mono); font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .rules-side { transition: transform .2s ease, visibility 0s linear .2s; }
-  .rules-open .rules-side { transition: transform .2s ease, visibility 0s; }
-  body { transition: padding-right .2s ease; }
+  .rules-fold { transition: grid-template-rows .2s ease, visibility 0s linear .2s; }
+  .rules-open .rules-fold { transition: grid-template-rows .2s ease, visibility 0s; }
 }
 
 .view { display: grid; gap: 28px; min-width: 0; }
@@ -203,9 +203,11 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
   th.opt, td.opt { display: none; }
   th, td { padding-left: 6px; padding-right: 6px; }
   td.team { white-space: normal; }
-  .matrix th.rowh { white-space: normal; line-height: 1.2; }
+  .matrix th.rowh { white-space: normal; line-height: 1.2; font-size: 12px; padding-right: 2px; }
   .matrix .ini { display: block; }
-  .matrix td { font-size: 12px; padding-left: 3px; padding-right: 3px; }
+  .matrix td { font-size: 11px; word-spacing: -.2em; padding-left: 2px; padding-right: 2px; border-left: 1px solid var(--line); }
+  .result { grid-template-columns: 3em minmax(0,1fr) auto minmax(0,1fr); gap: 6px; padding-left: 10px; padding-right: 10px; }
+  .rscore { font-size: 14px; }
 }
 
 .teamlist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; align-items: start; }
@@ -230,6 +232,7 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
 
 /* Kacheln (Saison in Zahlen, Punkte in den Regeln) */
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tiles.four { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 .tile { display: grid; justify-items: center; align-content: center; gap: 2px; padding: 14px 8px 12px; text-align: center; min-width: 0; }
 .tile b { font-family: var(--f-mono); font-weight: 600; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
 .tile span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
@@ -237,7 +240,7 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
 .tile.bonus { background: var(--b-soft); border-color: transparent; }
 .tile.bonus b { color: var(--b); }
 
-.rules { display: grid; gap: 10px; }
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
 .rule { display: grid; gap: 6px; align-content: start; padding: 14px 16px; }
 .rule h4 { font-family: var(--f-display); font-weight: 600; font-size: 20px; line-height: 1.1; text-transform: uppercase; margin: 0; }
 .rule p { margin: 0; font-size: 14px; }
