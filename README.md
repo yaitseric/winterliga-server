@@ -10,8 +10,8 @@ Lesen kann jeder mit dem Link, eintragen nur die Orga mit Passwort.
 | `server.js` | Node-Server ohne Abhängigkeiten: Seite, API, Passwortprüfung |
 | `public/` | Oberfläche (HTML, CSS, JS, Schriften lokal, also keine Google-Fonts-Anfragen) |
 | `seed.json` | Startdaten: die bisherigen 4 Teams und 4 Begegnungen |
-| `Dockerfile`, `docker-compose.yml` | App-Container plus Tailscale-Sidecar |
-| `tailscale/serve.json` | Serve-/Funnel-Konfiguration (HTTPS 443 → App) |
+| `Dockerfile`, `compose.yaml` | App-Container plus Tailscale-Sidecar |
+| `ts-config/winterliga.json` | Serve-/Funnel-Konfiguration (HTTPS 443 → App) |
 
 ## Einrichten
 
