@@ -51,7 +51,18 @@ body { background: var(--bg); color: var(--ink); font-family: var(--f-body); fon
 .wrap > * + * { margin-top: 28px; }
 a { color: var(--b); }
 
-header.board { display: grid; gap: 6px; }
+header.board { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "badge top" "badge title" "badge summary"; gap: 6px 22px; }
+.badge { grid-area: badge; align-self: center; display: block; width: 136px; }
+.badge img { display: block; width: 100%; height: auto; }
+header.board h1 { grid-area: title; }
+header.board .board-top { grid-area: top; }
+header.board .summary { grid-area: summary; }
+/* Auf dem Handy steht das Abzeichen neben dem Schriftzug, die übrigen Zeilen bekommen die volle Breite. */
+@media (max-width: 520px) {
+  header.board { grid-template-areas: "top top" "badge title" "summary summary"; gap: 8px 12px; }
+  .badge { width: 84px; }
+  header.board h1 { align-self: center; }
+}
 .eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(44px, 9vw, 76px); line-height: .9; margin: 0; letter-spacing: -.01em; text-transform: uppercase; text-wrap: balance; }
 h1 span { color: var(--a); }
@@ -71,7 +82,9 @@ h1 span { color: var(--a); }
 @media (max-width: 345px) { .tabs a, .rules-toggle { font-size: 15px; } }
 
 /* Regeln: klappen direkt unter den Reitern auf und schieben den Inhalt nach unten.
-   Innenabstände sitzen auf den Abschnitten, weil .rules-body sonst eingeklappt nicht auf Höhe 0 käme. */
+   Innenabstände sitzen auf den Abschnitten, weil .rules-body sonst eingeklappt nicht auf Höhe 0 käme.
+   Ohne overflow-anchor würde der Browser dem weggeschobenen Inhalt folgen und den Block aus dem Bild scrollen. */
+body { overflow-anchor: none; }
 .wrap > .rules-fold { margin-top: 0; }
 .rules-fold { display: grid; grid-template-rows: 0fr; visibility: hidden; }
 .rules-open .rules-fold { grid-template-rows: 1fr; visibility: visible; }
