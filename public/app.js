@@ -270,7 +270,7 @@
       { id: "shutouts", value: games.filter((g) => g.a !== g.b && Math.min(g.a, g.b) === 0).length, label: "Zu null", sub: "Spiele ohne Gegentor" },
       { id: "wild", value: wild.a + wild.b, label: "Tore in einem Spiel", sub: `${wild.a} : ${wild.b}, ${esc(teamName(wild.s.a))} gegen ${esc(teamName(wild.s.b))}` },
       { id: "topGoals", value: mostGoals, label: "Meiste Tore", sub: scorers },
-      ...(done.length ? [{ id: "perSeries", value: (done.reduce((n, s) => n + s.games.length, 0) / done.length).toFixed(1), label: "Spiele pro Begegnung", sub: "im Schnitt" }] : []),
+      { id: "perSeries", value: done.length ? (done.reduce((n, s) => n + s.games.length, 0) / done.length).toFixed(1) : 0, label: "Spiele pro Begegnung", sub: "im Schnitt" },
       { id: "days", value: new Set(played.map(dayOf)).size, label: "Spieltage", sub: "bisher" },
       { id: "people", value: new Set(played.flatMap((s) => [...lineupOf(s, "a"), ...lineupOf(s, "b")])).size, label: "Spieler", sub: "waren schon dabei" },
       { id: "comebacks", value: comebacks, label: "Comebacks", sub: "Sieg nach verlorenem ersten Spiel" },

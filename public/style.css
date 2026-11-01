@@ -253,7 +253,11 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
 /* Kacheln (Saison in Zahlen, Punkte in den Regeln) */
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tiles.four { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
-.tiles.all { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
+/* Immer 12 Stats: nur Spaltenzahlen, die 12 teilen, damit jede Reihe voll ist. Kommt ein Stat dazu, hier mit anpassen. */
+.tiles.all { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; }
+@media (min-width: 502px) { .tiles.all { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 662px) { .tiles.all { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 982px) { .tiles.all { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .stats-empty { grid-column: 1 / -1; }
 .facts-head { display: flex; align-items: center; gap: 4px; }
 /* Größere Klickfläche als das Symbol; der negative Rand hält die Zeile so hoch wie „Letzte Ergebnisse“ daneben. */
