@@ -2,10 +2,12 @@
 (() => {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const MAX_PLAYERS = 3;
   const S = {
     teams: [], series: [], tLoaded: false, sLoaded: false,
     canWrite: false, key: null, etag: null, offline: false,
     open: new Set(), editTeam: null, confirm: null, busy: new Set(), msg: {},
+    pick: { a: [], b: [] }, pickHtml: { a: "", b: "" },
   };
 
   // ---------- Server ----------
@@ -17,7 +19,7 @@
   }
   function applyState(st) {
     S.teams = (st.teams || []).map((t) => ({ id: t.id, name: String(t.name || "Team"), players: Array.isArray(t.players) ? t.players : [] }));
-    S.series = (st.series || []).map((s) => ({ id: s.id, a: s.a, b: s.b, date: s.date || null, createdAt: s.createdAt || 0, games: Array.isArray(s.games) ? s.games : [] }));
+    S.series = (st.series || []).map((s) => ({ id: s.id, a: s.a, b: s.b, lineupA: Array.isArray(s.lineupA) ? s.lineupA : [], lineupB: Array.isArray(s.lineupB) ? s.lineupB : [], date: s.date || null, createdAt: s.createdAt || 0, games: Array.isArray(s.games) ? s.games : [] }));
     S.tLoaded = S.sLoaded = true;
     S.etag = `"${st.rev}"`;
   }
@@ -47,6 +49,11 @@
   // ---------- derived data ----------
   const playersOf = (id) => (S.teams.find((t) => t.id === id) || {}).players || [];
   const teamName = (id) => (S.teams.find((t) => t.id === id) || {}).name || "Gelöschtes Team";
+  // Wer in der Begegnung spielt. Hatte das Team beim Anlegen noch keine 2 Spieler, gilt sein aktueller Stand.
+  function lineupOf(s, side) {
+    const lineup = side === "a" ? s.lineupA : s.lineupB;
+    return lineup.length >= 2 ? lineup : playersOf(s[side]);
+  }
   function stats(s) {
     let wa = 0, wb = 0, d = 0, ga = 0, gb = 0;
     const games = s.games || [];
@@ -55,7 +62,9 @@
     // Entschieden, sobald der Rückstand in den restlichen Spielen nicht mehr aufzuholen ist, spätestens nach 5 Spielen.
     const done = n >= 5 || wa > wb + rest || wb > wa + rest;
     const winner = done ? (wa > wb ? "a" : wb > wa ? "b" : null) : null;
-    return { wa, wb, d, ga, gb, n, done, winner, draw: done && !winner, state: done ? "done" : n ? "live" : "open" };
+    // Spielstand der Begegnung: Sieg 1, unentschiedenes Spiel je 0.5. Die halben Punkte heben sich auf, ändern also weder done noch winner.
+    const pa = wa + d / 2, pb = wb + d / 2;
+    return { wa, wb, d, pa, pb, ga, gb, n, done, winner, draw: done && !winner, state: done ? "done" : n ? "live" : "open" };
   }
   // Erste Begegnung je Paarung (nach Datum, dann Anlagezeitpunkt) bringt beiden Teams +1.
   function firstMeetings() {
@@ -145,6 +154,23 @@
     renderMatrix(loaded);
     renderTeams(loaded);
     restoreInputs(saved);
+    renderLineupPick();
+  }
+
+  // Hat ein Team mehr als 2 Spieler, muss beim Anlegen der Begegnung feststehen, welche 2 spielen.
+  // Nur bei Änderungen neu zeichnen, damit die 15-Sekunden-Aktualisierung den Fokus nicht wegnimmt.
+  function renderLineupPick() {
+    ["a", "b"].forEach((side) => {
+      const box = $(`#lineup-${side}`), id = $(`#series-${side}`).value, players = playersOf(id);
+      const pick = S.pick[side] = S.pick[side].filter((p) => players.includes(p));
+      const options = players.map((p, i) => {
+        const on = pick.includes(p), full = !on && pick.length >= 2;
+        return `<label class="pick"><input type="checkbox" id="pick-${side}-${i}" value="${esc(p)}" data-act="pick" data-side="${side}" ${on ? "checked" : ""} ${full ? "disabled" : ""}>${esc(p)}</label>`;
+      }).join("");
+      const html = players.length > 2 ? `<fieldset><legend>Wer spielt für ${esc(teamName(id))}? 2 von ${players.length} auswählen</legend>${options}</fieldset>` : "";
+      if (html === S.pickHtml[side]) return;
+      S.pickHtml[side] = html; box.innerHTML = html; box.hidden = !html;
+    });
   }
 
   function emptyBox(title, text) { return `<div class="empty"><strong>${title}</strong><p>${text}</p></div>`; }
@@ -176,7 +202,7 @@
 
   function seriesCard(s, firsts) {
     const st = stats(s), open = S.open.has(s.id), busy = S.busy.has(s.id);
-    const nameA = teamName(s.a), nameB = teamName(s.b);
+    const nameA = teamName(s.a), nameB = teamName(s.b), lineA = lineupOf(s, "a"), lineB = lineupOf(s, "b");
     const pips = Array.from({ length: 5 }, (_, i) => {
       const g = (s.games || [])[i];
       if (g) return `<span class="pip ${g.a > g.b ? "a" : g.b > g.a ? "b" : "d"}" title="Spiel ${i + 1}: ${g.a}:${g.b}"></span>`;
@@ -214,9 +240,9 @@
     return `<article class="series panel" data-id="${esc(s.id)}">
       <button class="series-head" type="button" data-act="toggle" data-id="${esc(s.id)}" aria-expanded="${open}">
         <span class="tname ta ${st.winner === "a" ? "won" : ""}">${esc(nameA)}</span>
-        <span class="sscore"><span class="ca">${st.wa}</span><span class="x">:</span><span class="cb">${st.wb}</span></span>
+        <span class="sscore"><span class="ca">${st.pa}</span><span class="x">:</span><span class="cb">${st.pb}</span></span>
         <span class="tname tb ${st.winner === "b" ? "won" : ""}">${esc(nameB)}</span>
-        ${playersOf(s.a).length || playersOf(s.b).length ? `<span class="tplayers pa">${esc(playersOf(s.a).join(" · "))}</span><span></span><span class="tplayers">${esc(playersOf(s.b).join(" · "))}</span>` : ""}
+        ${lineA.length || lineB.length ? `<span class="tplayers pa">${esc(lineA.join(" · "))}</span><span></span><span class="tplayers">${esc(lineB.join(" · "))}</span>` : ""}
         <span class="meta"><span class="pips" aria-label="${st.n} von 5 Spielen gespielt">${pips}</span><span>${st.n}/5 Spiele${st.d ? ` · ${st.d} remis` : ""}</span>${chip}${firsts.has(s.id) ? `<span class="chip bonus" title="Erste Begegnung dieser Teams: +1 Punkt für beide">Erstbegegnung +1</span>` : ""}${s.date ? `<span>${fmtDate(s.date)}</span>` : ""}</span>
       </button>${body}</article>`;
   }
@@ -245,7 +271,7 @@
         const ss = S.series.filter((s) => (s.a === r.id && s.b === c.id) || (s.a === c.id && s.b === r.id));
         if (!ss.length) return `<td class="none">–</td>`;
         const parts = ss.map((s) => {
-          const st = stats(s), mine = s.a === r.id ? st.wa : st.wb, theirs = s.a === r.id ? st.wb : st.wa;
+          const st = stats(s), mine = s.a === r.id ? st.pa : st.pb, theirs = s.a === r.id ? st.pb : st.pa;
           return { txt: st.n ? `${mine}:${theirs}` : "angesetzt", cls: st.done ? (mine > theirs ? "w" : mine < theirs ? "l" : "draw") : st.n ? "live" : "none" };
         });
         const cls = parts.length === 1 ? parts[0].cls : "";
@@ -272,7 +298,7 @@
         ? `<span class="player">${esc(p)}<button type="button" data-act="delplayer" data-id="${esc(t.id)}" data-i="${i}" aria-label="${esc(p)} entfernen" ${busy ? "disabled" : ""}>×</button></span>`
         : `<span class="player ro">${esc(p)}</span>`).join("");
       const plist = t.players.length ? `<div class="plist">${chips}</div>` : `<div class="plist none">Keine Spieler eingetragen</div>`;
-      const add = editing && t.players.length < 2 ? `<div class="padd"><input id="p-${esc(t.id)}" maxlength="40" autocomplete="off" placeholder="Spieler hinzufügen" aria-label="Spieler für ${esc(t.name)}" data-act="playerkey" data-id="${esc(t.id)}"><button class="primary" type="button" data-act="addplayer" data-id="${esc(t.id)}" ${busy ? "disabled" : ""}>Hinzufügen</button></div>` : "";
+      const add = editing && t.players.length < MAX_PLAYERS ? `<div class="padd"><input id="p-${esc(t.id)}" maxlength="40" autocomplete="off" placeholder="Spieler hinzufügen" aria-label="Spieler für ${esc(t.name)}" data-act="playerkey" data-id="${esc(t.id)}"><button class="primary" type="button" data-act="addplayer" data-id="${esc(t.id)}" ${busy ? "disabled" : ""}>Hinzufügen</button></div>` : "";
       const msg = S.msg[key] ? `<p class="err">${esc(S.msg[key])}</p>` : "";
       return `<li><div class="trow"><span class="tn">${esc(t.name)}</span><span class="acts">${edit}${btn}</span></div>${plist}${add}${msg}</li>`;
     }).join("");
@@ -339,7 +365,7 @@
     const out = [];
     list.map((p) => p.trim().replace(/\s+/g, " ").slice(0, 40)).filter(Boolean)
       .forEach((p) => { if (!out.some((q) => q.toLowerCase() === p.toLowerCase())) out.push(p); });
-    return out.slice(0, 2);
+    return out.slice(0, MAX_PLAYERS);
   }
   async function addPlayer(id) {
     const t = S.teams.find((x) => x.id === id), input = document.getElementById("p-" + id);
@@ -347,7 +373,7 @@
     const key = "t:" + id, name = input.value.trim().replace(/\s+/g, " ");
     if (!name) { input.focus(); return; }
     if (t.players.some((p) => p.toLowerCase() === name.toLowerCase())) { S.msg[key] = `„${name}“ ist schon im Team.`; render(); return; }
-    if (t.players.length >= 2) { S.msg[key] = "Ein Team hat höchstens 2 Spieler. Entferne erst einen."; render(); return; }
+    if (t.players.length >= MAX_PLAYERS) { S.msg[key] = `Ein Team hat höchstens ${MAX_PLAYERS} Spieler. Entferne erst einen.`; render(); return; }
     delete S.msg[key];
     await withBusy(key, () => api("PATCH", "/api/teams/" + id, { players: cleanPlayers([...t.players, name]) }));
     const el = document.getElementById("p-" + id);
@@ -384,6 +410,14 @@
   document.addEventListener("change", (ev) => {
     const el = ev.target;
     if (el.dataset && el.dataset.act === "edit") editGame(el.dataset.id, Number(el.dataset.i));
+    if (el.id === "series-a" || el.id === "series-b") { S.pick[el.id.slice(-1)] = []; renderLineupPick(); }
+    if (el.dataset && el.dataset.act === "pick") {
+      const side = el.dataset.side;
+      S.pick[side] = el.checked ? [...S.pick[side], el.value] : S.pick[side].filter((p) => p !== el.value);
+      $("#series-err").hidden = true;
+      renderLineupPick();
+      document.getElementById(el.id).focus();
+    }
   });
   document.addEventListener("keydown", (ev) => {
     const el = ev.target;
@@ -400,7 +434,7 @@
     if (S.teams.some((t) => t.name.toLowerCase() === name.toLowerCase())) { err.textContent = `„${name}“ gibt es schon.`; err.hidden = false; return; }
     try {
       const raw = $("#team-players").value.split(",").map((p) => p.trim()).filter(Boolean);
-      if (raw.length > 2) { err.textContent = "Ein Team hat höchstens 2 Spieler."; err.hidden = false; return; }
+      if (raw.length > MAX_PLAYERS) { err.textContent = `Ein Team hat höchstens ${MAX_PLAYERS} Spieler.`; err.hidden = false; return; }
       const players = cleanPlayers(raw);
       await api("POST", "/api/teams", { name, players });
       input.value = ""; $("#team-players").value = ""; input.focus();
@@ -416,10 +450,12 @@
     err.hidden = true;
     if (!a || !b) { err.textContent = "Wähle zwei Teams aus."; err.hidden = false; return; }
     if (a === b) { err.textContent = "Ein Team kann nicht gegen sich selbst spielen."; err.hidden = false; return; }
+    const unpicked = [["a", a], ["b", b]].find(([side, id]) => playersOf(id).length > 2 && S.pick[side].length !== 2);
+    if (unpicked) { err.textContent = `Wähle für „${teamName(unpicked[1])}“ die 2 Spieler aus, die spielen.`; err.hidden = false; return; }
     const btn = ev.submitter || $("#series-form button");
     btn.disabled = true;
     try {
-      const res = await api("POST", "/api/series", { a, b, date: date || null });
+      const res = await api("POST", "/api/series", { a, b, lineupA: S.pick.a, lineupB: S.pick.b, date: date || null });
       if (res.id) S.open.add(res.id);
       $("#series-a").value = ""; $("#series-b").value = ""; $("#series-date").value = "";
       render();

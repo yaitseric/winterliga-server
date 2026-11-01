@@ -15,6 +15,7 @@ const DATA_FILE = path.join(DATA_DIR, "league.json");
 const SEED_FILE = process.env.SEED_FILE || path.join(__dirname, "seed.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PASSWORD = process.env.ORGA_PASSWORD || "";
+const MAX_PLAYERS = 3;
 
 if (PASSWORD.length < 8) {
   console.error("ORGA_PASSWORD fehlt oder ist kürzer als 8 Zeichen. Setze es in der .env-Datei.");
@@ -45,8 +46,18 @@ function writeState(s) {
   fs.renameSync(tmp, DATA_FILE);
 }
 
+// Begegnungen aus der Zeit vor den 3er-Teams bekommen ihre Aufstellung nachträglich,
+// damit ein später dazukommender dritter Spieler dort nicht auftaucht.
+function addMissingLineups(s) {
+  const playersOf = (id) => [...((s.teams.find((t) => t.id === id) || {}).players || [])];
+  const missing = s.series.filter((m) => !m.lineupA || !m.lineupB);
+  missing.forEach((m) => { m.lineupA = m.lineupA || playersOf(m.a); m.lineupB = m.lineupB || playersOf(m.b); });
+  return missing.length > 0;
+}
+
 let state = loadState();
 function commit() { state.rev = (state.rev || 0) + 1; writeState(state); }
+if (addMissingLineups(state)) commit();
 
 // ---------- Validierung ----------
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
@@ -72,8 +83,15 @@ function checkPlayers(list) {
     if (out.some((q) => q.toLowerCase() === n.toLowerCase())) throw bad(`„${n}“ ist schon im Team.`);
     out.push(n);
   }
-  if (out.length > 2) throw bad("Ein Team hat höchstens 2 Spieler.");
+  if (out.length > MAX_PLAYERS) throw bad(`Ein Team hat höchstens ${MAX_PLAYERS} Spieler.`);
   return out;
+}
+// In einer Begegnung spielen 2 Leute: Ein Team mit mehr Spielern muss sie auswählen, die Auswahl bleibt danach fest.
+function checkLineup(team, chosen) {
+  if (team.players.length <= 2) return [...team.players];
+  const picked = Array.isArray(chosen) ? team.players.filter((p) => chosen.includes(p)) : [];
+  if (picked.length !== 2) throw bad(`Wähle für „${team.name}“ genau 2 Spieler aus.`);
+  return picked;
 }
 function checkDate(d) {
   if (d == null || d === "") return null;
@@ -192,9 +210,9 @@ async function api(req, res, parts) {
   } else if (resource === "series") {
     if (method === "POST" && !id) {
       const a = String(body.a || ""), b = String(body.b || "");
-      findTeam(a); findTeam(b);
+      const teamA = findTeam(a), teamB = findTeam(b);
       if (a === b) throw bad("Ein Team kann nicht gegen sich selbst spielen.");
-      const s = { id: newId(), a, b, date: checkDate(body.date), games: [], createdAt: Date.now() };
+      const s = { id: newId(), a, b, lineupA: checkLineup(teamA, body.lineupA), lineupB: checkLineup(teamB, body.lineupB), date: checkDate(body.date), games: [], createdAt: Date.now() };
       state.series.push(s); createdId = s.id;
     } else if (method === "PATCH" && id) {
       const s = findSeries(id);

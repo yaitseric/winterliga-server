@@ -42,6 +42,8 @@
           <div class="field"><label for="series-a">Team A</label><select id="series-a"></select></div>
           <div class="field"><label for="series-b">Team B</label><select id="series-b"></select></div>
           <div class="field date"><label for="series-date">Datum (optional)</label><input id="series-date" type="date"></div>
+          <div class="lineup" id="lineup-a" hidden></div>
+          <div class="lineup" id="lineup-b" hidden></div>
           <button class="primary" type="submit">Begegnung anlegen</button>
           <p class="err full" id="series-err" hidden></p>
         </form>
@@ -59,14 +61,14 @@
       <section>
         <h2>Direktvergleich</h2>
         <div class="panel scroll" id="matrix"></div>
-        <div class="legend"><span>Zeile gegen Spalte, Siege in der Begegnung</span><span class="cb">gewonnen</span><span class="ca">verloren</span><span class="lg-draw">unentschieden</span><span class="lg-live">läuft</span></div>
+        <div class="legend"><span>Zeile gegen Spalte, Spielstand der Begegnung (pro Spiel: Sieg 1, remis je 0.5)</span><span class="cb">gewonnen</span><span class="ca">verloren</span><span class="lg-draw">unentschieden</span><span class="lg-live">läuft</span></div>
       </section>
 
       <section>
         <h2>Teams <small id="team-count"></small></h2>
         <form class="inline" id="team-form" hidden>
           <div class="field"><label for="team-name">Teamname</label><input id="team-name" maxlength="40" autocomplete="off" placeholder="Name des Teams"></div>
-          <div class="field wide"><label for="team-players">Spieler (optional, 2, mit Komma getrennt)</label><input id="team-players" maxlength="200" autocomplete="off" placeholder="z. B. Anna, Ben"></div>
+          <div class="field wide"><label for="team-players">Spieler (optional, bis zu 3, mit Komma getrennt)</label><input id="team-players" maxlength="200" autocomplete="off" placeholder="z. B. Anna, Ben"></div>
           <button class="primary" type="submit">Team hinzufügen</button>
           <p class="err full" id="team-err" hidden></p>
         </form>
@@ -75,7 +77,7 @@
     </div>
   </div>
 
-  <footer class="foot">Ergebnisse trägt die Orga ein. Die Seite aktualisiert sich von selbst.</footer>
+  <footer class="foot">Bike Polo ist immer noch ok</footer>
 </div>
 </body>
 </html>
