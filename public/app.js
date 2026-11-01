@@ -10,7 +10,7 @@
     canWrite: false, key: null, etag: null, offline: false,
     open: new Set(), editTeam: null, confirm: null, busy: new Set(), msg: {},
     pick: { a: [], b: [] }, pickHtml: { a: "", b: "" },
-    view: VIEWS[0], rules: false, scrollTo: null, factIds: [], chart: null, chartW: 0,
+    view: VIEWS[0], rules: false, scrollTo: null, factIds: [], chart: null, chartW: 0, chartMetric: "points",
   };
 
   // ---------- Server ----------
@@ -257,22 +257,9 @@
       return (winner === "a" && first.a < first.b) || (winner === "b" && first.b < first.a);
     }).length;
 
-    // Längste Serie ohne Niederlage, Spiel für Spiel über die Begegnungen eines Teams hinweg.
-    const runs = new Map(S.teams.map((t) => [t.id, { now: 0, best: 0 }]));
-    [...played].sort(byOldest).forEach((s) => s.games.forEach((g) => {
-      [[s.a, g.a - g.b], [s.b, g.b - g.a]].forEach(([id, diff]) => {
-        const run = runs.get(id);
-        if (run) { run.now = diff < 0 ? 0 : run.now + 1; run.best = Math.max(run.best, run.now); }
-      });
-    }));
-    const longest = Math.max(...[...runs.values()].map((r) => r.best));
-    const unbeaten = S.teams.filter((t) => runs.get(t.id).best === longest);
-
-    const active = standings().filter((r) => r.gw + r.gd + r.gl);
-    const conceded = (r) => r.gag / (r.gw + r.gd + r.gl);
-    const fewest = Math.min(...active.map(conceded));
-    const solid = active.filter((r) => conceded(r) === fewest);
-    const names = (list) => list.map((t) => esc(t.name)).join(", ");
+    const table = standings();
+    const mostGoals = Math.max(...table.map((r) => r.gf));
+    const scorers = table.filter((r) => r.gf === mostGoals).map((r) => esc(r.name)).join(", ");
 
     return [
       { id: "goals", value: goals, label: "Tore", sub: inGames },
@@ -282,12 +269,11 @@
       { id: "close", value: games.filter((g) => Math.abs(g.a - g.b) === 1).length, label: "Knappe Spiele", sub: "mit 1 Tor Unterschied" },
       { id: "shutouts", value: games.filter((g) => g.a !== g.b && Math.min(g.a, g.b) === 0).length, label: "Zu null", sub: "Spiele ohne Gegentor" },
       { id: "wild", value: wild.a + wild.b, label: "Tore in einem Spiel", sub: `${wild.a} : ${wild.b}, ${esc(teamName(wild.s.a))} gegen ${esc(teamName(wild.s.b))}` },
+      { id: "topGoals", value: mostGoals, label: "Meiste Tore", sub: scorers },
       ...(done.length ? [{ id: "perSeries", value: (done.reduce((n, s) => n + s.games.length, 0) / done.length).toFixed(1), label: "Spiele pro Begegnung", sub: "im Schnitt" }] : []),
       { id: "days", value: new Set(played.map(dayOf)).size, label: "Spieltage", sub: "bisher" },
       { id: "people", value: new Set(played.flatMap((s) => [...lineupOf(s, "a"), ...lineupOf(s, "b")])).size, label: "Spieler", sub: "waren schon dabei" },
       { id: "comebacks", value: comebacks, label: "Comebacks", sub: "Sieg nach verlorenem ersten Spiel" },
-      { id: "unbeaten", value: longest, label: "Spiele ungeschlagen", sub: names(unbeaten) },
-      { id: "defense", value: fewest.toFixed(1), label: "Gegentore pro Spiel", sub: `beste Abwehr: ${names(solid)}` },
     ];
   }
 
@@ -312,15 +298,16 @@
     $("#facts-shuffle").hidden = pool.length <= FACTS_SHOWN;
   }
 
-  // Punktestand aller Teams nach jeder entschiedenen Begegnung, beginnend bei 0.
-  function pointsHistory() {
-    const firsts = firstMeetings();
+  // Stand aller Teams nach jedem Schritt, beginnend bei 0. Punkte gibt es erst für entschiedene Begegnungen,
+  // Tore zählen wie in der Tabelle auch aus laufenden.
+  function chartHistory(metric) {
+    const firsts = firstMeetings(), goals = metric === "goals";
     const totals = new Map(S.teams.map((t) => [t.id, 0]));
-    const steps = [{ series: null, pts: new Map(totals) }];
-    S.series.filter((s) => stats(s).done && totals.has(s.a) && totals.has(s.b)).sort(byOldest).forEach((s) => {
-      const p = leaguePoints(s, stats(s), firsts);
-      totals.set(s.a, totals.get(s.a) + p.a); totals.set(s.b, totals.get(s.b) + p.b);
-      steps.push({ series: s, pts: new Map(totals) });
+    const steps = [{ series: null, vals: new Map(totals) }];
+    S.series.filter((s) => (goals ? s.games.length : stats(s).done) && totals.has(s.a) && totals.has(s.b)).sort(byOldest).forEach((s) => {
+      const st = stats(s), add = goals ? { a: st.ga, b: st.gb } : leaguePoints(s, st, firsts);
+      totals.set(s.a, totals.get(s.a) + add.a); totals.set(s.b, totals.get(s.b) + add.b);
+      steps.push({ series: s, vals: new Map(totals) });
     });
     return steps;
   }
@@ -329,24 +316,28 @@
   const teamColor = (i) => (i < 8 ? `var(--team-${i + 1})` : "var(--muted)");
 
   function renderChart() {
-    const box = $("#chart"), W = box.clientWidth;
+    const box = $("#chart"), W = box.clientWidth, goals = S.chartMetric === "goals";
+    document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.metric === S.chartMetric)));
+    $("#chart-note").textContent = `Jeder Schritt ist eine ${goals ? "Begegnung mit eingetragenen Spielen, auch wenn sie noch läuft" : "entschiedene Begegnung"}, in der Reihenfolge der Spieltage. Ohne Datum zählt der Tag, an dem sie angelegt wurde.`;
     S.chartW = W;
     if (!W) return;
-    $("#chart-tip").hidden = true;
-    const steps = pointsHistory(), n = steps.length - 1;
+    const openStep = S.chart ? S.chart.i : null;
+    const steps = chartHistory(S.chartMetric), n = steps.length - 1;
     if (!n) {
       S.chart = null;
-      box.innerHTML = emptyBox("Noch kein Verlauf", "Sobald die erste Begegnung entschieden ist, entsteht hier die Kurve.");
+      $("#chart-tip").hidden = true;
+      box.innerHTML = emptyBox("Noch kein Verlauf", goals ? "Sobald das erste Spiel eingetragen ist, entsteht hier die Kurve." : "Sobald die erste Begegnung entschieden ist, entsteht hier die Kurve.");
       $("#chart-legend").innerHTML = ""; $("#chart-table").innerHTML = "";
       return;
     }
-    const last = steps[n].pts, H = W < 600 ? 230 : 280, top = 12, bottom = 24, left = 26;
+    const last = steps[n].vals, H = W < 600 ? 230 : 280, top = 12, bottom = 24, left = 26;
     const max = Math.max(1, ...last.values());
     const tick = [1, 2, 5, 10, 20, 50, 100].find((t) => max / t <= 5) || 200;
     const yMax = Math.ceil(max / tick) * tick;
     const y = (v) => top + (H - top - bottom) * (1 - v / yMax);
 
-    // Endbeschriftung: Teams auf gleicher Höhe teilen sich eine Beschriftung, statt sich zu überlagern.
+    // Endbeschriftung nur mit Namen, die Werte stehen im Graph und im Tooltip.
+    // Teams auf gleicher Höhe teilen sich eine Beschriftung, statt sich zu überlagern.
     const endLabels = (nameOf) => {
       const groups = [];
       S.teams.map((t) => ({ t, v: last.get(t.id) })).sort((p, q) => q.v - p.v).forEach((e) => {
@@ -354,7 +345,7 @@
         if (g && y(e.v) - y(g[g.length - 1].v) < 15) g.push(e); else groups.push([e]);
       });
       return groups.map((g) => ({
-        text: g.map((e) => nameOf(e.t)).join(" · ") + (g.every((e) => e.v === g[0].v) ? ` ${g[0].v}` : ""),
+        text: g.map((e) => nameOf(e.t)).join(" · "),
         y: g.reduce((sum, e) => sum + y(e.v), 0) / g.length,
       }));
     };
@@ -369,22 +360,24 @@
       `<line class="chart-grid" x1="${left}" x2="${W - right}" y1="${y(v)}" y2="${y(v)}"></line><text x="${left - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("");
     const ticks = xs.map((x, i) => (i % every ? "" : `<text x="${x}" y="${H - 6}" text-anchor="${i ? "middle" : "start"}">${i || "Start"}</text>`)).join("");
     const lines = S.teams.map((t, i) => {
-      const pts = steps.map((st, k) => `${xs[k]},${y(st.pts.get(t.id))}`).join(" ");
-      const dots = n <= 14 ? steps.map((st, k) => `<circle class="chart-dot" cx="${xs[k]}" cy="${y(st.pts.get(t.id))}" r="4"></circle>`).join("") : "";
+      const pts = steps.map((st, k) => `${xs[k]},${y(st.vals.get(t.id))}`).join(" ");
+      const dots = n <= 14 ? steps.map((st, k) => `<circle class="chart-dot" cx="${xs[k]}" cy="${y(st.vals.get(t.id))}" r="4"></circle>`).join("") : "";
       return `<g style="--c:${teamColor(i)}" data-team="${esc(t.id)}"><polyline class="chart-line" points="${pts}"></polyline>${dots}</g>`;
     }).join("");
     const ends = labels.map((l) => `<text class="chart-end" x="${W - right + 8}" y="${l.y + 4}">${esc(l.text)}</text>`).join("");
     box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${ticks}<line class="chart-cross" id="chart-cross" y1="${top}" y2="${H - bottom}" visibility="hidden"></line>${lines}${ends}</svg>`;
-    box.setAttribute("aria-label", `Punkteverlauf über ${n} ${n === 1 ? "Begegnung" : "Begegnungen"}. Stand: ${S.teams.map((t) => `${t.name} ${last.get(t.id)}`).join(", ")}.`);
+    box.setAttribute("aria-label", `${goals ? "Tore" : "Punkte"} über ${n} ${n === 1 ? "Begegnung" : "Begegnungen"}. Stand: ${S.teams.map((t) => `${t.name} ${last.get(t.id)}`).join(", ")}.`);
     S.chart = { xs, steps, i: null };
 
     $("#chart-legend").innerHTML = S.teams.map((t, i) => `<span class="chart-key" style="--c:${teamColor(i)}"><i></i>${esc(t.name)}</span>`).join("");
     const head = S.teams.map((t) => `<th title="${esc(t.name)}">${esc(initials(t.name))}</th>`).join("");
     const body = steps.slice(1).map((st, i) => {
-      const s = st.series, cells = S.teams.map((t) => `<td>${st.pts.get(t.id)}</td>`).join("");
+      const s = st.series, cells = S.teams.map((t) => `<td>${st.vals.get(t.id)}</td>`).join("");
       return `<tr><td class="l" title="${esc(teamName(s.a))} gegen ${esc(teamName(s.b))}">${i + 1}. ${fmtDate(dayOf(s)).slice(0, 6)}</td>${cells}</tr>`;
     }).join("");
     $("#chart-table").innerHTML = `<table><thead><tr><th class="l">Begegnung</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    // Neue Daten oder eine neue Breite lassen einen offenen Tooltip stehen.
+    if (openStep !== null && openStep <= n) showChartStep(openStep); else hideChartStep();
   }
 
   // Tooltip: Fadenkreuz am nächsten Schritt, alle Teams auf einen Blick. Namen laufen über textContent.
@@ -394,21 +387,22 @@
     c.i = i;
     const cross = $("#chart-cross");
     cross.setAttribute("x1", c.xs[i]); cross.setAttribute("x2", c.xs[i]); cross.setAttribute("visibility", "visible");
-    const { series, pts } = c.steps[i], line = (cls, text) => {
+    const { series, vals } = c.steps[i], line = (cls, text) => {
       const el = document.createElement("div");
       el.className = cls; el.textContent = text;
       return el;
     };
-    const rows = S.teams.map((t, k) => ({ t, k, v: pts.get(t.id) })).sort((p, q) => q.v - p.v || p.k - q.k).map(({ t, k, v }) => {
+    const rows = S.teams.map((t, k) => ({ t, k, v: vals.get(t.id) })).sort((p, q) => q.v - p.v || p.k - q.k).map(({ t, k, v }) => {
       const row = document.createElement("div"), key = document.createElement("i"), value = document.createElement("b");
       row.className = "chart-tip-row"; row.style.setProperty("--c", teamColor(k)); value.textContent = v;
       row.append(key, value, t.name);
       return row;
     });
-    const st = series && stats(series);
+    const st = series && stats(series), goals = S.chartMetric === "goals";
+    const score = series && (goals ? `${st.ga} : ${st.gb}` : `${st.pa} : ${st.pb}`);
     tip.replaceChildren(
-      line("chart-tip-head", series ? `Begegnung ${i} · ${fmtDate(dayOf(series)).slice(0, 6)}` : "Saisonstart"),
-      ...(series ? [line("chart-tip-sub", `${teamName(series.a)} ${st.pa} : ${st.pb} ${teamName(series.b)}`)] : []),
+      line("chart-tip-head", series ? `Begegnung ${i} · ${fmtDate(dayOf(series)).slice(0, 6)}${st.done ? "" : " · läuft"}` : "Saisonstart"),
+      ...(series ? [line("chart-tip-sub", `${teamName(series.a)} ${score} ${teamName(series.b)}`)] : []),
       ...rows,
     );
     tip.hidden = false;
@@ -635,6 +629,7 @@
     else if (act === "openseries") { S.open.add(id); S.scrollTo = id; render(); }
     else if (act === "rules") { ev.preventDefault(); setRules(!S.rules); }
     else if (act === "shuffle") { S.factIds = pickFacts(S.factIds); renderFacts(true); }
+    else if (act === "chartmetric") { S.chartMetric = el.dataset.metric; renderChart(); }
     else if (act === "addgame") addGame(id);
     else if (act === "editteam") { S.editTeam = S.editTeam === id ? null : id; delete S.msg["t:" + id]; render(); if (S.editTeam) { const el = document.getElementById("p-" + id); if (el) el.focus(); } }
     else if (act === "addplayer") addPlayer(id);
@@ -758,7 +753,7 @@
     if (open) scrollToTabs();
   }
 
-  // ---------- Punkteverlauf ----------
+  // ---------- Saisonverlauf ----------
   const chartEl = $("#chart");
   const nearestStep = (ev) => {
     const x = ev.clientX - chartEl.getBoundingClientRect().left, { xs } = S.chart;

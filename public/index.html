@@ -141,15 +141,21 @@
 
     <div class="view" id="view-stats" hidden>
       <section>
-        <h2>Punkteverlauf</h2>
+        <div class="chart-head">
+          <h2>Saisonverlauf</h2>
+          <div class="seg" role="group" aria-label="Die Kurve zeigt">
+            <button type="button" data-act="chartmetric" data-metric="points" aria-pressed="true">Punkte</button>
+            <button type="button" data-act="chartmetric" data-metric="goals" aria-pressed="false">Tore</button>
+          </div>
+        </div>
         <div class="panel chart-card">
           <div class="chart-legend" id="chart-legend"></div>
           <div class="chart-stage">
-            <div class="chart" id="chart" tabindex="0" role="img" aria-label="Punkteverlauf"></div>
+            <div class="chart" id="chart" tabindex="0" role="img" aria-label="Saisonverlauf"></div>
             <div class="chart-tip" id="chart-tip" hidden></div>
           </div>
         </div>
-        <p class="note">Jeder Schritt ist eine entschiedene Begegnung, in der Reihenfolge der Spieltage. Ohne Datum zählt der Tag, an dem sie angelegt wurde.</p>
+        <p class="note" id="chart-note"></p>
         <details class="chart-table">
           <summary>Als Tabelle anzeigen</summary>
           <div class="panel scroll" id="chart-table"></div>
