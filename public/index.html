@@ -29,6 +29,7 @@
     <a href="#tabelle" data-view="tabelle" aria-current="page">Tabelle</a>
     <a href="#begegnungen" data-view="begegnungen">Begegnungen</a>
     <a href="#teams" data-view="teams">Teams</a>
+    <a href="#stats" data-view="stats">Stats</a>
     <button class="rules-toggle" id="rules-toggle" type="button" data-act="rules" aria-expanded="false" aria-controls="rules">Regeln</button>
   </nav>
 
@@ -101,6 +102,10 @@
         <section id="facts-box" hidden>
           <h2>Saison in Zahlen</h2>
           <div class="tiles" id="facts"></div>
+          <div class="facts-foot">
+            <a href="#stats">Alle Stats ansehen</a>
+            <button class="ghost" id="facts-shuffle" type="button" data-act="shuffle">Neu würfeln</button>
+          </div>
         </section>
       </div>
     </div>
@@ -131,6 +136,29 @@
           <p class="err full" id="team-err" hidden></p>
         </form>
         <div id="teams"></div>
+      </section>
+    </div>
+
+    <div class="view" id="view-stats" hidden>
+      <section>
+        <h2>Punkteverlauf</h2>
+        <div class="panel chart-card">
+          <div class="chart-legend" id="chart-legend"></div>
+          <div class="chart-stage">
+            <div class="chart" id="chart" tabindex="0" role="img" aria-label="Punkteverlauf"></div>
+            <div class="chart-tip" id="chart-tip" hidden></div>
+          </div>
+        </div>
+        <p class="note">Jeder Schritt ist eine entschiedene Begegnung, in der Reihenfolge der Spieltage. Ohne Datum zählt der Tag, an dem sie angelegt wurde.</p>
+        <details class="chart-table">
+          <summary>Als Tabelle anzeigen</summary>
+          <div class="panel scroll" id="chart-table"></div>
+        </details>
+      </section>
+
+      <section>
+        <h2>Alle Stats</h2>
+        <div class="tiles all" id="all-stats"></div>
       </section>
     </div>
   </main>

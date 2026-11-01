@@ -3,13 +3,14 @@
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const MAX_PLAYERS = 3;
-  const VIEWS = ["tabelle", "begegnungen", "teams"];
+  const VIEWS = ["tabelle", "begegnungen", "teams", "stats"];
+  const FACTS_SHOWN = 4;
   const S = {
     teams: [], series: [], tLoaded: false, sLoaded: false,
     canWrite: false, key: null, etag: null, offline: false,
     open: new Set(), editTeam: null, confirm: null, busy: new Set(), msg: {},
     pick: { a: [], b: [] }, pickHtml: { a: "", b: "" },
-    view: VIEWS[0], rules: false, scrollTo: null,
+    view: VIEWS[0], rules: false, scrollTo: null, factIds: [], chart: null, chartW: 0,
   };
 
   // ---------- Server ----------
@@ -86,6 +87,11 @@
     });
     return new Set([...first.values()].map((s) => s.id));
   }
+  // Liga-Punkte einer entschiedenen Begegnung; Tabelle und Punkteverlauf rechnen beide hiermit.
+  function leaguePoints(s, st, firsts) {
+    const bonus = firsts.has(s.id) ? 1 : 0, base = (side) => (!st.winner ? 1 : st.winner === side ? 2 : 0);
+    return { a: base("a") + bonus, b: base("b") + bonus };
+  }
   function standings() {
     const firsts = firstMeetings();
     const rows = new Map(S.teams.map((t) => [t.id, { id: t.id, name: t.name, pts: 0, bonus: 0, sp: 0, sw: 0, sd: 0, sl: 0, gw: 0, gd: 0, gl: 0, gf: 0, gag: 0 }]));
@@ -96,8 +102,10 @@
       A.gw += st.wa; A.gl += st.wb; B.gw += st.wb; B.gl += st.wa; A.gd += st.d; B.gd += st.d;
       A.gf += st.ga; A.gag += st.gb; B.gf += st.gb; B.gag += st.ga;
       if (st.done) {
-        if (st.winner === "a") { A.sw++; B.sl++; A.pts += 2; } else if (st.winner === "b") { B.sw++; A.sl++; B.pts += 2; } else { A.sd++; B.sd++; A.pts++; B.pts++; }
-        if (firsts.has(s.id)) { A.pts++; B.pts++; A.bonus++; B.bonus++; }
+        const p = leaguePoints(s, st, firsts);
+        A.pts += p.a; B.pts += p.b;
+        if (st.winner === "a") { A.sw++; B.sl++; } else if (st.winner === "b") { B.sw++; A.sl++; } else { A.sd++; B.sd++; }
+        if (firsts.has(s.id)) { A.bonus++; B.bonus++; }
       }
     });
     return [...rows.values()].sort((x, y) =>
@@ -159,6 +167,7 @@
     renderLive(loaded);
     renderRecent(loaded);
     renderFacts(loaded);
+    renderChart();
     renderSeries(loaded);
     renderStandings(loaded);
     renderMatrix(loaded);
@@ -232,22 +241,185 @@
     }).join("");
   }
 
-  function renderFacts(loaded) {
-    const games = loaded ? S.series.flatMap((s) => s.games.map((g) => ({ ...g, s }))) : [];
-    $("#facts-box").hidden = !games.length;
-    if (!games.length) return;
+  // Alle Kennzahlen der Saison. Ein Wert von 0 bleibt in der Übersicht, kommt aber nicht auf die Startseite.
+  function seasonStats() {
+    const played = S.series.filter((s) => s.games.length);
+    const games = played.flatMap((s) => s.games.map((g) => ({ ...g, s })));
+    if (!games.length) return [];
+    const done = played.filter((s) => stats(s).done);
     const goals = games.reduce((n, g) => n + g.a + g.b, 0);
-    const draws = games.filter((g) => g.a === g.b).length;
-    const allPairs = S.teams.length * (S.teams.length - 1) / 2;
-    const playedPairs = new Set(S.series.filter((s) => s.games.length).map((s) => [s.a, s.b].sort().join("|"))).size;
     const inGames = `in ${games.length} ${games.length === 1 ? "Spiel" : "Spielen"}`;
-    const tile = (value, label, sub) => `<div class="tile panel"><b>${value}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
-    $("#facts").innerHTML = [
-      tile(goals, "Tore", inGames),
-      tile(Math.round(goals / games.length * 10) / 10, "Tore pro Spiel"),
-      tile(draws, "Remis", inGames),
-      tile(`${playedPairs} / ${allPairs}`, "Paarungen", "haben schon gespielt"),
-    ].join("");
+    const allPairs = S.teams.length * (S.teams.length - 1) / 2;
+    const playedPairs = new Set(played.map((s) => [s.a, s.b].sort().join("|"))).size;
+    const wild = games.reduce((most, g) => (g.a + g.b > most.a + most.b ? g : most));
+    const comebacks = done.filter((s) => {
+      const first = s.games[0], { winner } = stats(s);
+      return (winner === "a" && first.a < first.b) || (winner === "b" && first.b < first.a);
+    }).length;
+
+    // Längste Serie ohne Niederlage, Spiel für Spiel über die Begegnungen eines Teams hinweg.
+    const runs = new Map(S.teams.map((t) => [t.id, { now: 0, best: 0 }]));
+    [...played].sort(byOldest).forEach((s) => s.games.forEach((g) => {
+      [[s.a, g.a - g.b], [s.b, g.b - g.a]].forEach(([id, diff]) => {
+        const run = runs.get(id);
+        if (run) { run.now = diff < 0 ? 0 : run.now + 1; run.best = Math.max(run.best, run.now); }
+      });
+    }));
+    const longest = Math.max(...[...runs.values()].map((r) => r.best));
+    const unbeaten = S.teams.filter((t) => runs.get(t.id).best === longest);
+
+    const active = standings().filter((r) => r.gw + r.gd + r.gl);
+    const conceded = (r) => r.gag / (r.gw + r.gd + r.gl);
+    const fewest = Math.min(...active.map(conceded));
+    const solid = active.filter((r) => conceded(r) === fewest);
+    const names = (list) => list.map((t) => esc(t.name)).join(", ");
+
+    return [
+      { id: "goals", value: goals, label: "Tore", sub: inGames },
+      { id: "perGame", value: (goals / games.length).toFixed(1), label: "Tore pro Spiel" },
+      { id: "draws", value: games.filter((g) => g.a === g.b).length, label: "Remis", sub: inGames },
+      { id: "pairs", value: `${playedPairs} / ${allPairs}`, label: "Paarungen", sub: "haben schon gespielt" },
+      { id: "close", value: games.filter((g) => Math.abs(g.a - g.b) === 1).length, label: "Knappe Spiele", sub: "mit 1 Tor Unterschied" },
+      { id: "shutouts", value: games.filter((g) => g.a !== g.b && Math.min(g.a, g.b) === 0).length, label: "Zu null", sub: "Spiele ohne Gegentor" },
+      { id: "wild", value: wild.a + wild.b, label: "Tore in einem Spiel", sub: `${wild.a} : ${wild.b}, ${esc(teamName(wild.s.a))} gegen ${esc(teamName(wild.s.b))}` },
+      ...(done.length ? [{ id: "perSeries", value: (done.reduce((n, s) => n + s.games.length, 0) / done.length).toFixed(1), label: "Spiele pro Begegnung", sub: "im Schnitt" }] : []),
+      { id: "days", value: new Set(played.map(dayOf)).size, label: "Spieltage", sub: "bisher" },
+      { id: "people", value: new Set(played.flatMap((s) => [...lineupOf(s, "a"), ...lineupOf(s, "b")])).size, label: "Spieler", sub: "waren schon dabei" },
+      { id: "comebacks", value: comebacks, label: "Comebacks", sub: "Sieg nach verlorenem ersten Spiel" },
+      { id: "unbeaten", value: longest, label: "Spiele ungeschlagen", sub: names(unbeaten) },
+      { id: "defense", value: fewest.toFixed(1), label: "Gegentore pro Spiel", sub: `beste Abwehr: ${names(solid)}` },
+    ];
+  }
+
+  const statTile = (f) => `<div class="tile panel" data-stat="${f.id}"><b>${f.value}</b><span>${f.label}</span>${f.sub ? `<small>${f.sub}</small>` : ""}</div>`;
+
+  // Zufällige Auswahl für die Startseite; was gerade zu sehen ist, kommt beim Neu-Würfeln zuletzt dran.
+  function pickFacts(avoid = []) {
+    const pool = seasonStats().filter((f) => f.value !== 0).map((f) => f.id);
+    const mix = (ids) => ids.map((id) => [Math.random(), id]).sort((x, y) => x[0] - y[0]).map((p) => p[1]);
+    return [...mix(pool.filter((id) => !avoid.includes(id))), ...mix(avoid.filter((id) => pool.includes(id)))].slice(0, FACTS_SHOWN);
+  }
+
+  function renderFacts(loaded) {
+    const all = loaded ? seasonStats() : [], pool = all.filter((f) => f.value !== 0);
+    $("#facts-box").hidden = !all.length;
+    $("#all-stats").innerHTML = all.length ? all.map(statTile).join("") : `<div class="panel stats-empty">${emptyBox("Noch keine Zahlen", "Sobald das erste Spiel eingetragen ist, stehen hier die Zahlen der Saison.")}</div>`;
+    if (!all.length) return;
+    // Die Auswahl bleibt bei jeder Aktualisierung stehen, nur der Knopf würfelt neu.
+    const stale = S.factIds.length !== Math.min(FACTS_SHOWN, pool.length) || !S.factIds.every((id) => pool.some((f) => f.id === id));
+    if (stale) S.factIds = pickFacts();
+    $("#facts").innerHTML = S.factIds.map((id) => statTile(pool.find((f) => f.id === id))).join("");
+    $("#facts-shuffle").hidden = pool.length <= FACTS_SHOWN;
+  }
+
+  // Punktestand aller Teams nach jeder entschiedenen Begegnung, beginnend bei 0.
+  function pointsHistory() {
+    const firsts = firstMeetings();
+    const totals = new Map(S.teams.map((t) => [t.id, 0]));
+    const steps = [{ series: null, pts: new Map(totals) }];
+    S.series.filter((s) => stats(s).done && totals.has(s.a) && totals.has(s.b)).sort(byOldest).forEach((s) => {
+      const p = leaguePoints(s, stats(s), firsts);
+      totals.set(s.a, totals.get(s.a) + p.a); totals.set(s.b, totals.get(s.b) + p.b);
+      steps.push({ series: s, pts: new Map(totals) });
+    });
+    return steps;
+  }
+
+  // Die Farbe gehört zum Team (Anlage-Reihenfolge), nicht zum Tabellenplatz, und bleibt so über die Saison gleich.
+  const teamColor = (i) => (i < 8 ? `var(--team-${i + 1})` : "var(--muted)");
+
+  function renderChart() {
+    const box = $("#chart"), W = box.clientWidth;
+    S.chartW = W;
+    if (!W) return;
+    $("#chart-tip").hidden = true;
+    const steps = pointsHistory(), n = steps.length - 1;
+    if (!n) {
+      S.chart = null;
+      box.innerHTML = emptyBox("Noch kein Verlauf", "Sobald die erste Begegnung entschieden ist, entsteht hier die Kurve.");
+      $("#chart-legend").innerHTML = ""; $("#chart-table").innerHTML = "";
+      return;
+    }
+    const last = steps[n].pts, H = W < 600 ? 230 : 280, top = 12, bottom = 24, left = 26;
+    const max = Math.max(1, ...last.values());
+    const tick = [1, 2, 5, 10, 20, 50, 100].find((t) => max / t <= 5) || 200;
+    const yMax = Math.ceil(max / tick) * tick;
+    const y = (v) => top + (H - top - bottom) * (1 - v / yMax);
+
+    // Endbeschriftung: Teams auf gleicher Höhe teilen sich eine Beschriftung, statt sich zu überlagern.
+    const endLabels = (nameOf) => {
+      const groups = [];
+      S.teams.map((t) => ({ t, v: last.get(t.id) })).sort((p, q) => q.v - p.v).forEach((e) => {
+        const g = groups[groups.length - 1];
+        if (g && y(e.v) - y(g[g.length - 1].v) < 15) g.push(e); else groups.push([e]);
+      });
+      return groups.map((g) => ({
+        text: g.map((e) => nameOf(e.t)).join(" · ") + (g.every((e) => e.v === g[0].v) ? ` ${g[0].v}` : ""),
+        y: g.reduce((sum, e) => sum + y(e.v), 0) / g.length,
+      }));
+    };
+    const width = (labels) => Math.max(...labels.map((l) => l.text.length)) * 6.8 + 12;
+    let labels = endLabels((t) => t.name);
+    if (W < 600 || width(labels) > W * 0.34) labels = endLabels((t) => initials(t.name));
+    const right = Math.min(width(labels), W * 0.34);
+
+    const xs = steps.map((_, i) => left + (W - left - right) * (i / n));
+    const every = Math.ceil((n + 1) / Math.max(2, Math.floor((W - left - right) / 40)));
+    const grid = Array.from({ length: yMax / tick + 1 }, (_, i) => i * tick).map((v) =>
+      `<line class="chart-grid" x1="${left}" x2="${W - right}" y1="${y(v)}" y2="${y(v)}"></line><text x="${left - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("");
+    const ticks = xs.map((x, i) => (i % every ? "" : `<text x="${x}" y="${H - 6}" text-anchor="${i ? "middle" : "start"}">${i || "Start"}</text>`)).join("");
+    const lines = S.teams.map((t, i) => {
+      const pts = steps.map((st, k) => `${xs[k]},${y(st.pts.get(t.id))}`).join(" ");
+      const dots = n <= 14 ? steps.map((st, k) => `<circle class="chart-dot" cx="${xs[k]}" cy="${y(st.pts.get(t.id))}" r="4"></circle>`).join("") : "";
+      return `<g style="--c:${teamColor(i)}" data-team="${esc(t.id)}"><polyline class="chart-line" points="${pts}"></polyline>${dots}</g>`;
+    }).join("");
+    const ends = labels.map((l) => `<text class="chart-end" x="${W - right + 8}" y="${l.y + 4}">${esc(l.text)}</text>`).join("");
+    box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${ticks}<line class="chart-cross" id="chart-cross" y1="${top}" y2="${H - bottom}" visibility="hidden"></line>${lines}${ends}</svg>`;
+    box.setAttribute("aria-label", `Punkteverlauf über ${n} ${n === 1 ? "Begegnung" : "Begegnungen"}. Stand: ${S.teams.map((t) => `${t.name} ${last.get(t.id)}`).join(", ")}.`);
+    S.chart = { xs, steps, i: null };
+
+    $("#chart-legend").innerHTML = S.teams.map((t, i) => `<span class="chart-key" style="--c:${teamColor(i)}"><i></i>${esc(t.name)}</span>`).join("");
+    const head = S.teams.map((t) => `<th title="${esc(t.name)}">${esc(initials(t.name))}</th>`).join("");
+    const body = steps.slice(1).map((st, i) => {
+      const s = st.series, cells = S.teams.map((t) => `<td>${st.pts.get(t.id)}</td>`).join("");
+      return `<tr><td class="l" title="${esc(teamName(s.a))} gegen ${esc(teamName(s.b))}">${i + 1}. ${fmtDate(dayOf(s)).slice(0, 6)}</td>${cells}</tr>`;
+    }).join("");
+    $("#chart-table").innerHTML = `<table><thead><tr><th class="l">Begegnung</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  }
+
+  // Tooltip: Fadenkreuz am nächsten Schritt, alle Teams auf einen Blick. Namen laufen über textContent.
+  function showChartStep(i) {
+    const c = S.chart, tip = $("#chart-tip");
+    if (!c) return;
+    c.i = i;
+    const cross = $("#chart-cross");
+    cross.setAttribute("x1", c.xs[i]); cross.setAttribute("x2", c.xs[i]); cross.setAttribute("visibility", "visible");
+    const { series, pts } = c.steps[i], line = (cls, text) => {
+      const el = document.createElement("div");
+      el.className = cls; el.textContent = text;
+      return el;
+    };
+    const rows = S.teams.map((t, k) => ({ t, k, v: pts.get(t.id) })).sort((p, q) => q.v - p.v || p.k - q.k).map(({ t, k, v }) => {
+      const row = document.createElement("div"), key = document.createElement("i"), value = document.createElement("b");
+      row.className = "chart-tip-row"; row.style.setProperty("--c", teamColor(k)); value.textContent = v;
+      row.append(key, value, t.name);
+      return row;
+    });
+    const st = series && stats(series);
+    tip.replaceChildren(
+      line("chart-tip-head", series ? `Begegnung ${i} · ${fmtDate(dayOf(series)).slice(0, 6)}` : "Saisonstart"),
+      ...(series ? [line("chart-tip-sub", `${teamName(series.a)} ${st.pa} : ${st.pb} ${teamName(series.b)}`)] : []),
+      ...rows,
+    );
+    tip.hidden = false;
+    const W = $("#chart").clientWidth, tw = tip.offsetWidth, x = c.xs[i];
+    tip.style.left = `${x + 12 + tw > W ? Math.max(0, x - tw - 12) : x + 12}px`;
+  }
+  function hideChartStep() {
+    const cross = $("#chart-cross");
+    if (cross) cross.setAttribute("visibility", "hidden");
+    $("#chart-tip").hidden = true;
+    if (S.chart) S.chart.i = null;
   }
 
   function pipsOf(s, st) {
@@ -261,6 +433,9 @@
   }
 
   const byNewest = (x, y) => String(y.date || "").localeCompare(String(x.date || "")) || (y.createdAt || 0) - (x.createdAt || 0);
+  // Das Datum ist freiwillig: Ohne zählt der Tag, an dem die Begegnung angelegt wurde.
+  const dayOf = (s) => s.date || new Date(s.createdAt || 0).toISOString().slice(0, 10);
+  const byOldest = (x, y) => dayOf(x).localeCompare(dayOf(y)) || (x.createdAt || 0) - (y.createdAt || 0);
 
   function fmtDate(d) {
     if (!d) return "";
@@ -459,6 +634,7 @@
     if (act === "toggle") { S.open.has(id) ? S.open.delete(id) : S.open.add(id); render(); }
     else if (act === "openseries") { S.open.add(id); S.scrollTo = id; render(); }
     else if (act === "rules") { ev.preventDefault(); setRules(!S.rules); }
+    else if (act === "shuffle") { S.factIds = pickFacts(S.factIds); renderFacts(true); }
     else if (act === "addgame") addGame(id);
     else if (act === "editteam") { S.editTeam = S.editTeam === id ? null : id; delete S.msg["t:" + id]; render(); if (S.editTeam) { const el = document.getElementById("p-" + id); if (el) el.focus(); } }
     else if (act === "addplayer") addPlayer(id);
@@ -581,6 +757,25 @@
     $("#rules-toggle").setAttribute("aria-expanded", String(open));
     if (open) scrollToTabs();
   }
+
+  // ---------- Punkteverlauf ----------
+  const chartEl = $("#chart");
+  const nearestStep = (ev) => {
+    const x = ev.clientX - chartEl.getBoundingClientRect().left, { xs } = S.chart;
+    return xs.reduce((best, v, i) => (Math.abs(v - x) < Math.abs(xs[best] - x) ? i : best), 0);
+  };
+  ["pointermove", "pointerdown"].forEach((type) => chartEl.addEventListener(type, (ev) => { if (S.chart) showChartStep(nearestStep(ev)); }));
+  // Auf Touch-Geräten bleibt der Wert nach dem Antippen stehen, die Maus blendet ihn beim Verlassen aus.
+  chartEl.addEventListener("pointerleave", (ev) => { if (ev.pointerType === "mouse") hideChartStep(); });
+  chartEl.addEventListener("blur", hideChartStep);
+  chartEl.addEventListener("keydown", (ev) => {
+    const c = S.chart, dir = { ArrowRight: 1, ArrowLeft: -1 }[ev.key];
+    if (!c || !dir) return;
+    ev.preventDefault();
+    showChartStep(Math.min(c.steps.length - 1, Math.max(0, c.i === null ? c.steps.length - 1 : c.i + dir)));
+  });
+  // Die Kurve wird für die echte Breite gezeichnet, also auch dann, wenn der Bereich erst sichtbar wird.
+  new ResizeObserver(() => { if (chartEl.clientWidth !== S.chartW) renderChart(); }).observe(chartEl);
 
   // ---------- Start ----------
   showView();

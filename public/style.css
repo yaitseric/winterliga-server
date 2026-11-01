@@ -21,6 +21,8 @@
   --live-soft: #FBF0D9;
   --danger: #B42318;
   --focus: #1D7487;
+  --team-1: #2a78d6; --team-2: #eb6834; --team-3: #1baf7a; --team-4: #eda100;
+  --team-5: #e87ba4; --team-6: #008300; --team-7: #6250d6; --team-8: #e34948;
   --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
   --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -30,6 +32,8 @@
     --bg: #0E151C; --panel: #16202A; --ink: #E5ECF2; --muted: #93A3B2; --line: #2A3845;
     --a: #F07A52; --a-soft: #3A2219; --b: #45B3C7; --b-soft: #142D33;
     --live: #E2A84B; --live-soft: #33281A; --danger: #F2837A; --focus: #45B3C7;
+    --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
+    --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
     color-scheme: dark;
   }
 }
@@ -37,6 +41,8 @@
   --bg: #0E151C; --panel: #16202A; --ink: #E5ECF2; --muted: #93A3B2; --line: #2A3845;
   --a: #F07A52; --a-soft: #3A2219; --b: #45B3C7; --b-soft: #142D33;
   --live: #E2A84B; --live-soft: #33281A; --danger: #F2837A; --focus: #45B3C7;
+  --team-1: #3987e5; --team-2: #d95926; --team-3: #199e70; --team-4: #c98500;
+  --team-5: #d55181; --team-6: #008300; --team-7: #9085e9; --team-8: #e66767;
   color-scheme: dark;
 }
 body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
@@ -61,7 +67,8 @@ h1 span { color: var(--a); }
 .rules-toggle::after { content: ""; width: 7px; height: 7px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; margin-top: -3px; transform: rotate(-45deg); }
 .rules-toggle[aria-expanded="true"] { color: var(--ink); border-bottom-color: var(--a); }
 .rules-toggle[aria-expanded="true"]::after { margin-top: 3px; transform: rotate(135deg); }
-@media (max-width: 460px) { .tabs { justify-content: space-between; gap: 8px; } .tabs a, .rules-toggle { font-size: 19px; } .rules-toggle { margin-left: 0; gap: 5px; } }
+@media (max-width: 460px) { .tabs { justify-content: space-between; gap: 6px; } .tabs a, .rules-toggle { font-size: 17px; } .rules-toggle { margin-left: 0; gap: 4px; } }
+@media (max-width: 345px) { .tabs a, .rules-toggle { font-size: 15px; } }
 
 /* Regeln: klappen direkt unter den Reitern auf und schieben den Inhalt nach unten.
    Innenabstände sitzen auf den Abschnitten, weil .rules-body sonst eingeklappt nicht auf Höhe 0 käme. */
@@ -233,6 +240,11 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
 /* Kacheln (Saison in Zahlen, Punkte in den Regeln) */
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .tiles.four { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.tiles.all { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
+.stats-empty { grid-column: 1 / -1; }
+.facts-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; }
+.facts-foot a { color: var(--muted); font-weight: 600; }
+.facts-foot button { padding: 4px 10px; font-size: 13px; }
 .tile { display: grid; justify-items: center; align-content: center; gap: 2px; padding: 14px 8px 12px; text-align: center; min-width: 0; }
 .tile b { font-family: var(--f-mono); font-weight: 600; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
 .tile span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
@@ -244,6 +256,28 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
 .rule { display: grid; gap: 6px; align-content: start; padding: 14px 16px; }
 .rule h4 { font-family: var(--f-display); font-weight: 600; font-size: 20px; line-height: 1.1; text-transform: uppercase; margin: 0; }
 .rule p { margin: 0; font-size: 14px; }
+
+/* Punkteverlauf */
+.chart-card { display: grid; gap: 10px; padding: 14px 16px 10px; min-width: 0; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+.chart-key { display: inline-flex; align-items: center; gap: 7px; }
+.chart-key i, .chart-tip-row i { flex: none; width: 16px; height: 2px; border-radius: 1px; background: var(--c); }
+.chart-stage { position: relative; min-width: 0; }
+.chart { touch-action: pan-y; border-radius: 4px; }
+.chart svg { display: block; }
+.chart text { font-family: var(--f-mono); font-size: 11px; fill: var(--muted); }
+.chart text.chart-end { font-family: var(--f-body); font-size: 12px; font-weight: 600; fill: var(--ink); }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-line { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-dot { fill: var(--c); stroke: var(--panel); stroke-width: 2; }
+.chart-cross { stroke: var(--muted); stroke-width: 1; }
+.chart-tip { position: absolute; top: 2px; z-index: 5; box-sizing: border-box; max-width: min(240px, 100%); display: grid; gap: 3px; padding: 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / .14); font-size: 12px; pointer-events: none; }
+.chart-tip-head { font-family: var(--f-mono); font-size: 11px; color: var(--muted); }
+.chart-tip-sub { color: var(--muted); padding-bottom: 3px; overflow-wrap: anywhere; }
+.chart-tip-row { display: flex; align-items: center; gap: 7px; }
+.chart-tip-row b { font-family: var(--f-mono); font-weight: 600; font-size: 13px; min-width: 1.5em; text-align: right; font-variant-numeric: tabular-nums; }
+.chart-table summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+.chart-table[open] summary { margin-bottom: 8px; }
 
 .empty { padding: 22px 18px; display: grid; gap: 6px; text-align: left; }
 .empty strong { font-family: var(--f-display); font-size: 20px; text-transform: uppercase; }
