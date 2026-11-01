@@ -255,9 +255,13 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
 .tiles.four { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 .tiles.all { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); }
 .stats-empty { grid-column: 1 / -1; }
-.facts-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; }
+.facts-head { display: flex; align-items: center; gap: 4px; }
+/* Größere Klickfläche als das Symbol; der negative Rand hält die Zeile so hoch wie „Letzte Ergebnisse“ daneben. */
+.icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; margin: -3px 0; padding: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.icon-btn:hover { color: var(--ink); background: var(--line); }
+.icon-btn svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.facts-foot { font-size: 13px; }
 .facts-foot a { color: var(--muted); font-weight: 600; }
-.facts-foot button { padding: 4px 10px; font-size: 13px; }
 .tile { display: grid; justify-items: center; align-content: center; gap: 2px; padding: 14px 8px 12px; text-align: center; min-width: 0; }
 .tile b { font-family: var(--f-mono); font-weight: 600; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
 .tile span { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
