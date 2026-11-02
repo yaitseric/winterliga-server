@@ -127,7 +127,8 @@ h2 small { font-family: var(--f-mono); font-size: 12px; font-weight: 500; color:
 form.inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
 form.inline .field { display: grid; gap: 3px; flex: 1 1 140px; min-width: 0; }
 label { font-size: 12px; color: var(--muted); font-weight: 500; }
-input, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; min-width: 0; width: 100%; box-sizing: border-box; }
+/* Mindestens 16px: Bei kleinerer Schrift zoomt Safari auf dem iPhone beim Antippen automatisch ins Feld. */
+input, select { font: inherit; font-size: 16px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px; min-width: 0; width: 100%; box-sizing: border-box; }
 input[type=number] { font-family: var(--f-mono); text-align: center; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 button { font: inherit; cursor: pointer; border-radius: 4px; border: 1px solid transparent; padding: 7px 13px; font-weight: 600; }
