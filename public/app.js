@@ -529,7 +529,8 @@
         ? `<button class="${used ? "ghost" : "danger" + (confirming ? " armed" : "")}" type="button" data-act="delteam" data-id="${esc(t.id)}" ${used ? 'disabled title="Team hat Begegnungen – erst die Begegnungen löschen"' : ""}>${confirming ? "Wirklich löschen?" : "Löschen"}</button>`
         : "";
       const key = "t:" + t.id, editing = S.canWrite && S.editTeam === t.id, busy = S.busy.has(key);
-      const edit = S.canWrite ? `<button class="ghost" type="button" data-act="editteam" data-id="${esc(t.id)}" aria-expanded="${editing}">${editing ? "Fertig" : "Spieler"}</button>` : "";
+      const edit = S.canWrite ? `<button class="ghost" type="button" data-act="editteam" data-id="${esc(t.id)}" aria-expanded="${editing}">${editing ? "Fertig" : "Bearbeiten"}</button>` : "";
+      const rename = editing ? `<div class="padd"><input id="tn-${esc(t.id)}" maxlength="40" autocomplete="off" value="${esc(t.name)}" aria-label="Neuer Name für ${esc(t.name)}" data-act="teamnamekey" data-id="${esc(t.id)}"><button class="primary" type="button" data-act="renameteam" data-id="${esc(t.id)}" ${busy ? "disabled" : ""}>Umbenennen</button></div>` : "";
       const removable = t.players.length > MIN_PLAYERS;
       const chips = t.players.map((p, i) => editing && removable
         ? `<span class="player">${esc(p)}<button type="button" data-act="delplayer" data-id="${esc(t.id)}" data-i="${i}" aria-label="${esc(p)} entfernen" ${busy ? "disabled" : ""}>×</button></span>`
@@ -538,7 +539,7 @@
       const add = editing && t.players.length < MAX_PLAYERS ? `<div class="padd"><input id="p-${esc(t.id)}" maxlength="40" autocomplete="off" placeholder="Spieler hinzufügen" aria-label="Spieler für ${esc(t.name)}" data-act="playerkey" data-id="${esc(t.id)}"><button class="primary" type="button" data-act="addplayer" data-id="${esc(t.id)}" ${busy ? "disabled" : ""}>Hinzufügen</button></div>` : "";
       const hint = editing && !removable ? `<p class="note">Ein Team braucht mindestens ${MIN_PLAYERS} Spieler. Zum Tauschen erst jemanden hinzufügen.</p>` : "";
       const msg = S.msg[key] ? `<p class="err">${esc(S.msg[key])}</p>` : "";
-      return `<li class="panel"><div class="trow"><span class="tn">${esc(t.name)}</span><span class="acts">${edit}${btn}</span></div>${plist}${tstats}${add}${hint}${msg}</li>`;
+      return `<li class="panel"><div class="trow"><span class="tn">${esc(t.name)}</span><span class="acts">${edit}${btn}</span></div>${rename}${plist}${tstats}${add}${hint}${msg}</li>`;
     }).join("");
     box.innerHTML = `<ul class="teamlist">${list}</ul>`;
   }
@@ -605,6 +606,17 @@
       .forEach((p) => { if (!out.some((q) => q.toLowerCase() === p.toLowerCase())) out.push(p); });
     return out.slice(0, MAX_PLAYERS);
   }
+  // Begegnungen verweisen über die Team-ID aufs Team, ein neuer Name lässt Spiele und Punkte also unberührt.
+  async function renameTeam(id) {
+    const t = S.teams.find((x) => x.id === id), input = document.getElementById("tn-" + id);
+    if (!t || !input) return;
+    const key = "t:" + id, name = input.value.trim().replace(/\s+/g, " ");
+    delete S.msg[key];
+    if (!name) { S.msg[key] = "Gib einen Teamnamen ein."; render(); return; }
+    if (S.teams.some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) { S.msg[key] = `„${name}“ gibt es schon.`; render(); return; }
+    if (name === t.name) { input.value = name; render(); return; }
+    await withBusy(key, () => api("PATCH", "/api/teams/" + id, { name }));
+  }
   async function addPlayer(id) {
     const t = S.teams.find((x) => x.id === id), input = document.getElementById("p-" + id);
     if (!t || !input) return;
@@ -635,6 +647,7 @@
     else if (act === "chartmetric") { S.chartMetric = el.dataset.metric; renderChart(); }
     else if (act === "addgame") addGame(id);
     else if (act === "editteam") { S.editTeam = S.editTeam === id ? null : id; delete S.msg["t:" + id]; render(); if (S.editTeam) { const el = document.getElementById("p-" + id); if (el) el.focus(); } }
+    else if (act === "renameteam") renameTeam(id);
     else if (act === "addplayer") addPlayer(id);
     else if (act === "delplayer") delPlayer(id, i);
     else if (act === "delgame") delGame(id, i);
@@ -665,6 +678,7 @@
     const el = ev.target;
     if (ev.key === "Enter" && el.dataset && el.dataset.act === "newkey") { ev.preventDefault(); addGame(el.dataset.id); }
     if (ev.key === "Enter" && el.dataset && el.dataset.act === "playerkey") { ev.preventDefault(); addPlayer(el.dataset.id); }
+    if (ev.key === "Enter" && el.dataset && el.dataset.act === "teamnamekey") { ev.preventDefault(); renameTeam(el.dataset.id); }
   });
 
   $("#team-form").addEventListener("submit", async (ev) => {
