@@ -2,6 +2,7 @@
 (() => {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const MIN_PLAYERS = 2;
   const MAX_PLAYERS = 3;
   const VIEWS = ["tabelle", "begegnungen", "teams", "stats"];
   const FACTS_SHOWN = 4;
@@ -201,7 +202,7 @@
       box.innerHTML = `<div class="panel">${emptyBox("Noch keine Begegnungen",
         S.teams.length < 2
           ? "Lege zuerst mindestens zwei Teams an (im Bereich Teams). Danach kannst du hier Paarungen anlegen und jedes Spiel der Begegnung (Best of 5) eintragen."
-          : "Wähle oben zwei Teams und lege die erste Begegnung an. Jede Begegnung geht über maximal fünf Spiele. Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch unentschieden enden.")}</div>`;
+          : "Wähle oben zwei Teams und lege die erste Begegnung an. Jede Begegnung geht über maximal fünf Spiele. Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch als Draw enden.")}</div>`;
       return;
     }
     const list = [...S.series].sort(byNewest);
@@ -264,7 +265,7 @@
     return [
       { id: "goals", value: goals, label: "Tore", sub: inGames },
       { id: "perGame", value: (goals / games.length).toFixed(1), label: "Tore pro Spiel" },
-      { id: "draws", value: games.filter((g) => g.a === g.b).length, label: "Remis", sub: inGames },
+      { id: "draws", value: games.filter((g) => g.a === g.b).length, label: "Draws", sub: inGames },
       { id: "pairs", value: `${playedPairs} / ${allPairs}`, label: "Paarungen", sub: "haben schon gespielt" },
       { id: "close", value: games.filter((g) => Math.abs(g.a - g.b) === 1).length, label: "Knappe Spiele", sub: "mit 1 Tor Unterschied" },
       { id: "shutouts", value: games.filter((g) => g.a !== g.b && Math.min(g.a, g.b) === 0).length, label: "Zu null", sub: "Spiele ohne Gegentor" },
@@ -273,7 +274,7 @@
       { id: "perSeries", value: done.length ? (done.reduce((n, s) => n + s.games.length, 0) / done.length).toFixed(1) : 0, label: "Spiele pro Begegnung", sub: "im Schnitt" },
       { id: "days", value: new Set(played.map(dayOf)).size, label: "Spieltage", sub: "bisher" },
       { id: "people", value: new Set(played.flatMap((s) => [...lineupOf(s, "a"), ...lineupOf(s, "b")])).size, label: "Spieler", sub: "waren schon dabei" },
-      { id: "comebacks", value: comebacks, label: "Comebacks", sub: "Sieg nach verlorenem ersten Spiel" },
+      { id: "comebacks", value: comebacks, label: "Comebacks", sub: "Win nach verlorenem ersten Spiel" },
     ];
   }
 
@@ -440,7 +441,7 @@
   function seriesCard(s, firsts) {
     const st = stats(s), open = S.open.has(s.id), busy = S.busy.has(s.id);
     const nameA = teamName(s.a), nameB = teamName(s.b), lineA = lineupOf(s, "a"), lineB = lineupOf(s, "b");
-    const chip = st.draw ? `<span class="chip done">unentschieden</span>` : "";
+    const chip = st.draw ? `<span class="chip done">draw</span>` : "";
     let body = "";
     if (open) {
       const rows = (s.games || []).map((g, i) => {
@@ -475,7 +476,7 @@
         <span class="sscore"><span class="ca">${st.pa}</span><span class="x">:</span><span class="cb">${st.pb}</span></span>
         <span class="tname tb ${st.winner === "b" ? "won" : ""}">${esc(nameB)}</span>
         ${lineA.length || lineB.length ? `<span class="tplayers pa">${esc(lineA.join(" · "))}</span><span></span><span class="tplayers">${esc(lineB.join(" · "))}</span>` : ""}
-        <span class="meta">${pipsOf(s, st)}<span>${st.n}/5 Spiele${st.d ? ` · ${st.d} remis` : ""}</span>${chip}${firsts.has(s.id) ? `<span class="chip bonus" title="Erste Begegnung dieser Teams: +1 Punkt für beide">Erstbegegnung +1</span>` : ""}${s.date ? `<span>${fmtDate(s.date)}</span>` : ""}</span>
+        <span class="meta">${pipsOf(s, st)}<span>${st.n}/5 Spiele${st.d ? ` · ${st.d} ${st.d === 1 ? "draw" : "draws"}` : ""}</span>${chip}${firsts.has(s.id) ? `<span class="chip bonus" title="Erste Begegnung dieser Teams: +1 Punkt für beide">Erstbegegnung +1</span>` : ""}${s.date ? `<span>${fmtDate(s.date)}</span>` : ""}</span>
       </button>${body}</article>`;
   }
 
@@ -488,7 +489,7 @@
       const gd = r.gf - r.gag;
       return `<tr><td class="rank">${i + 1}</td><td class="l team">${esc(r.name)}</td><td class="pts" title="${r.pts - r.bonus} aus Ergebnissen + ${r.bonus} Bonus">${r.pts}</td><td>${r.sw}–${r.sd}–${r.sl}</td><td class="opt">${r.gw}–${r.gd}–${r.gl}</td><td class="opt">${r.gf}:${r.gag}</td><td class="${gd > 0 ? "pos" : gd < 0 ? "neg" : ""}">${sign(gd)}</td></tr>`;
     }).join("");
-    box.innerHTML = `<table><thead><tr><th>#</th><th class="l">Team</th><th title="Punkte">Pkt</th><th title="Begegnungen gewonnen – unentschieden – verloren">Begegn.</th><th class="opt" title="Spiele gewonnen – unentschieden – verloren">Spiele</th><th class="opt" title="Tore geschossen : kassiert">Tore</th><th title="Tordifferenz: geschossene minus kassierte Tore">Tordiff.</th></tr></thead><tbody>${rows}</tbody></table>`;
+    box.innerHTML = `<table><thead><tr><th>#</th><th class="l">Team</th><th title="Punkte">Pkt</th><th title="Begegnungen: Win – Draw – Lose">Begegn.</th><th class="opt" title="Spiele: Win – Draw – Lose">Spiele</th><th class="opt" title="Tore geschossen : kassiert">Tore</th><th title="Tordifferenz: geschossene minus kassierte Tore">Tordiff.</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   function renderMatrix(loaded) {
@@ -529,13 +530,15 @@
         : "";
       const key = "t:" + t.id, editing = S.canWrite && S.editTeam === t.id, busy = S.busy.has(key);
       const edit = S.canWrite ? `<button class="ghost" type="button" data-act="editteam" data-id="${esc(t.id)}" aria-expanded="${editing}">${editing ? "Fertig" : "Spieler"}</button>` : "";
-      const chips = t.players.map((p, i) => editing
+      const removable = t.players.length > MIN_PLAYERS;
+      const chips = t.players.map((p, i) => editing && removable
         ? `<span class="player">${esc(p)}<button type="button" data-act="delplayer" data-id="${esc(t.id)}" data-i="${i}" aria-label="${esc(p)} entfernen" ${busy ? "disabled" : ""}>×</button></span>`
         : `<span class="player ro">${esc(p)}</span>`).join("");
       const plist = t.players.length ? `<div class="plist">${chips}</div>` : `<div class="plist none">Keine Spieler eingetragen</div>`;
       const add = editing && t.players.length < MAX_PLAYERS ? `<div class="padd"><input id="p-${esc(t.id)}" maxlength="40" autocomplete="off" placeholder="Spieler hinzufügen" aria-label="Spieler für ${esc(t.name)}" data-act="playerkey" data-id="${esc(t.id)}"><button class="primary" type="button" data-act="addplayer" data-id="${esc(t.id)}" ${busy ? "disabled" : ""}>Hinzufügen</button></div>` : "";
+      const hint = editing && !removable ? `<p class="note">Ein Team braucht mindestens ${MIN_PLAYERS} Spieler. Zum Tauschen erst jemanden hinzufügen.</p>` : "";
       const msg = S.msg[key] ? `<p class="err">${esc(S.msg[key])}</p>` : "";
-      return `<li class="panel"><div class="trow"><span class="tn">${esc(t.name)}</span><span class="acts">${edit}${btn}</span></div>${plist}${tstats}${add}${msg}</li>`;
+      return `<li class="panel"><div class="trow"><span class="tn">${esc(t.name)}</span><span class="acts">${edit}${btn}</span></div>${plist}${tstats}${add}${hint}${msg}</li>`;
     }).join("");
     box.innerHTML = `<ul class="teamlist">${list}</ul>`;
   }
@@ -675,6 +678,7 @@
       const raw = $("#team-players").value.split(",").map((p) => p.trim()).filter(Boolean);
       if (raw.length > MAX_PLAYERS) { err.textContent = `Ein Team hat höchstens ${MAX_PLAYERS} Spieler.`; err.hidden = false; return; }
       const players = cleanPlayers(raw);
+      if (players.length < MIN_PLAYERS) { err.textContent = `Ein Team braucht mindestens ${MIN_PLAYERS} Spieler.`; err.hidden = false; return; }
       await api("POST", "/api/teams", { name, players });
       input.value = ""; $("#team-players").value = ""; input.focus();
     } catch (e) {

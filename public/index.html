@@ -43,9 +43,9 @@
       <section>
         <h3>Punkte für die Tabelle</h3>
         <div class="tiles four">
-          <div class="tile panel"><b>2</b><span>Sieg</span></div>
-          <div class="tile panel"><b>1</b><span>Unentschieden</span></div>
-          <div class="tile panel"><b>0</b><span>Niederlage</span></div>
+          <div class="tile panel"><b>2</b><span>Win</span></div>
+          <div class="tile panel"><b>1</b><span>Draw</span></div>
+          <div class="tile panel"><b>0</b><span>Lose</span></div>
           <div class="tile panel bonus"><b>+1</b><span>Erstbegegnung</span></div>
         </div>
         <p class="note">Für die Tabelle zählt nur der Ausgang der Begegnung, nicht wie hoch sie gewonnen wurde. Punkte gibt es, sobald die Begegnung entschieden ist. Die erste Begegnung zweier Teams bringt beiden +1, egal wie sie ausgeht.</p>
@@ -56,13 +56,27 @@
         <div class="rules">
           <article class="rule panel">
             <h4>Teams</h4>
-            <p>Ein Team hat bis zu 3 Spieler. Gespielt wird immer 2 gegen 2. Hat ein Team 3 Spieler, legt es beim Start der Begegnung fest, welche 2 spielen. Während der Begegnung wird nicht gewechselt.</p>
+            <p>Ein Team hat 2 oder 3 Spieler. Gespielt wird immer 2 gegen 2. Hat ein Team 3 Spieler, legt es beim Start der Begegnung fest, welche 2 spielen. Während der Begegnung wird nicht gewechselt.</p>
           </article>
           <article class="rule panel">
             <h4>Begegnung</h4>
-            <p>Eine Begegnung geht über maximal 5 Spiele (Best of 5). Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch unentschieden enden.</p>
+            <p>Eine Begegnung geht über maximal 5 Spiele (Best of 5, first to 3). Sie ist entschieden, sobald ein Team nicht mehr eingeholt werden kann, und kann auch als Draw enden.</p>
+          </article>
+          <article class="rule panel">
+            <h4>Spiel</h4>
+            <ul>
+              <li>12 oder 15 Minuten pro Spiel</li>
+              <li>Spiele können als Draw enden. No golden goals.</li>
+              <li>Bei 5 Goal Unterschied ist das Spiel sofort vorbei.</li>
+              <li>No half court shots</li>
+            </ul>
+          </article>
+          <article class="rule panel">
+            <h4>Tore und Crease</h4>
+            <p>Standardmäßig wird mit großen Toren und normalen Crease-Regeln gespielt (Torwart:in erlaubt). Wenn beide Teams möchten, geht es auch mit kleinen Toren und ohne Torwart:in (Crease-Regeln, als würde bereits eine Person im Crease stehen).</p>
           </article>
         </div>
+        <p class="rules-fun">Spaß haben steht im Vordergrund.</p>
       </section>
     </div>
   </div>
@@ -87,13 +101,13 @@
         <section>
           <h2>Tabelle</h2>
           <div class="panel scroll" id="standings"></div>
-          <p class="note">Sieg 2, Unentschieden 1, Niederlage 0, Erstbegegnung +1. Begegn. und Spiele stehen als Siege–Unentschieden–Niederlagen. <a href="#regeln" data-act="rules">Alle Regeln</a></p>
+          <p class="note">Win 2, Draw 1, Lose 0, Erstbegegnung +1. Begegn. und Spiele stehen als Win–Draw–Lose. <a href="#regeln" data-act="rules">Alle Regeln</a></p>
         </section>
 
         <section>
           <h2>Direktvergleich</h2>
           <div class="panel scroll" id="matrix"></div>
-          <div class="legend"><span>Zeile gegen Spalte, Spielstand der Begegnung (pro Spiel: Sieg 1, remis je 0.5)</span><span class="cb">gewonnen</span><span class="ca">verloren</span><span class="lg-draw">unentschieden</span><span class="lg-live">läuft</span></div>
+          <div class="legend"><span>Zeile gegen Spalte, Spielstand der Begegnung (pro Spiel: Win 1, Draw je 0.5)</span><span class="cb">win</span><span class="ca">lose</span><span class="lg-draw">draw</span><span class="lg-live">läuft</span></div>
         </section>
       </div>
 
@@ -139,7 +153,7 @@
         <h2 class="sr">Teams <small id="team-count"></small></h2>
         <form class="inline panel boxed" id="team-form" hidden>
           <div class="field"><label for="team-name">Teamname</label><input id="team-name" maxlength="40" autocomplete="off" placeholder="Name des Teams"></div>
-          <div class="field wide"><label for="team-players">Spieler (optional, bis zu 3, mit Komma getrennt)</label><input id="team-players" maxlength="200" autocomplete="off" placeholder="z. B. Anna, Ben"></div>
+          <div class="field wide"><label for="team-players">Spieler</label><input id="team-players" maxlength="200" autocomplete="off" placeholder="z. B. Kalle, Emil"></div>
           <button class="primary" type="submit">Team hinzufügen</button>
           <p class="err full" id="team-err" hidden></p>
         </form>
@@ -177,7 +191,7 @@
     </div>
   </main>
 
-  <footer class="foot">Bike Polo ist immer noch ok</footer>
+  <footer class="foot"></footer>
 </div>
 </body>
 </html>

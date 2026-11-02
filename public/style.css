@@ -274,7 +274,10 @@ td.pos { color: var(--b); } td.neg { color: var(--a); }
 .tile.bonus { background: var(--b-soft); border-color: transparent; }
 .tile.bonus b { color: var(--b); }
 
-.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.rules { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+@media (min-width: 680px) { .rules { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; } }
+.rule ul { margin: 0; padding-left: 18px; font-size: 14px; }
+.rules-fun { margin: 4px 0 0; text-align: center; font-family: var(--f-display); font-weight: 600; font-size: 20px; line-height: 1.1; text-transform: uppercase; }
 .rule { display: grid; gap: 6px; align-content: start; padding: 14px 16px; }
 .rule h4 { font-family: var(--f-display); font-weight: 600; font-size: 20px; line-height: 1.1; text-transform: uppercase; margin: 0; }
 .rule p { margin: 0; font-size: 14px; }
@@ -328,7 +331,7 @@ form.boxed { padding: 12px 14px; }
 /* Orga-Zugang */
 .board-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .orga { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.orga .tag { font-family: var(--f-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--b); background: var(--b-soft); padding: 2px 8px; border-radius: 999px; }
+.orga .tag { font-family: var(--f-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--b); background: var(--b-soft); padding: 2px 8px; border-radius: 999px; margin-right: 4px; }
 .orga button { padding: 4px 10px; font-size: 13px; }
 #login-form { padding: 12px 14px; }
 #login-form .field { flex: 1 1 200px; }

@@ -15,6 +15,7 @@ const DATA_FILE = path.join(DATA_DIR, "league.json");
 const SEED_FILE = process.env.SEED_FILE || path.join(__dirname, "seed.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PASSWORD = process.env.ORGA_PASSWORD || "";
+const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 3;
 
 if (PASSWORD.length < 8) {
@@ -72,6 +73,7 @@ function checkName(name, selfId) {
   if (state.teams.some((t) => t.id !== selfId && t.name.toLowerCase() === n.toLowerCase())) throw bad(`„${n}“ gibt es schon.`);
   return n;
 }
+const TOO_FEW_PLAYERS = `Ein Team braucht mindestens ${MIN_PLAYERS} Spieler.`;
 function checkPlayers(list) {
   if (list == null) return [];
   if (!Array.isArray(list)) throw bad("Spieler müssen als Liste kommen.");
@@ -195,12 +197,16 @@ async function api(req, res, parts) {
 
   if (resource === "teams") {
     if (method === "POST" && !id) {
-      const team = { id: newId(), name: checkName(body.name), players: checkPlayers(body.players), createdAt: Date.now() };
+      const players = checkPlayers(body.players);
+      if (players.length < MIN_PLAYERS) throw bad(TOO_FEW_PLAYERS);
+      const team = { id: newId(), name: checkName(body.name), players, createdAt: Date.now() };
       state.teams.push(team); createdId = team.id;
     } else if (method === "PATCH" && id) {
       const t = findTeam(id);
       const name = "name" in body ? checkName(body.name, id) : t.name;
       const players = "players" in body ? checkPlayers(body.players) : t.players;
+      // Kein Team darf unter das Minimum schrumpfen. Ältere Teams mit zu wenigen Spielern lassen sich aber einzeln auffüllen.
+      if (players.length < MIN_PLAYERS && players.length < t.players.length) throw bad(TOO_FEW_PLAYERS);
       t.name = name; t.players = players;
     } else if (method === "DELETE" && id) {
       findTeam(id);
