@@ -171,7 +171,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .pip.b { background: var(--b); border-color: var(--b); }
 .pip.d { background: var(--muted); border-color: var(--muted); }
 .pip.skip { border-style: dashed; opacity: .5; }
-.pip.next { background: var(--live); border-color: var(--live); }
+/* Nur ein Ring: Eine Füllung sähe nach einem schon gespielten Spiel aus (Teamfarbe = Sieg, Grau = remis). */
+.pip.next { border-color: var(--ink); }
 @media (prefers-reduced-motion: no-preference) { .pip.next { animation: pip-pulse 2s ease-in-out infinite; } }
 @keyframes pip-pulse { 50% { opacity: .25; } }
 .chip { font-family: var(--f-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }

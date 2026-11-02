@@ -464,7 +464,7 @@
       const none = !st.n && !add ? `<p class="note">Noch keine Spiele eingetragen.</p>` : "";
       const msg = S.msg[s.id] ? `<p class="err">${esc(S.msg[s.id])}</p>` : "";
       const confirming = S.confirm === s.id;
-      const foot = `<div class="series-foot"><span>${st.n ? `Tore gesamt ${st.ga}:${st.gb}` : ""}${s.date ? ` · ${fmtDate(s.date)}` : ""}</span>${S.canWrite ? `<button class="danger${confirming ? " armed" : ""}" type="button" data-act="delseries" data-id="${s.id}" ${busy ? "disabled" : ""}>${confirming ? "Wirklich löschen?" : "Begegnung löschen"}</button>` : ""}</div>`;
+      const foot = `<div class="series-foot"><span>${st.n ? `Tore gesamt ${st.ga}:${st.gb}` : ""}</span>${S.canWrite ? `<button class="danger${confirming ? " armed" : ""}" type="button" data-act="delseries" data-id="${s.id}" ${busy ? "disabled" : ""}>${confirming ? "Wirklich löschen?" : "Begegnung löschen"}</button>` : ""}</div>`;
       body = `<div class="games">
         <div class="grow headrow"><span></span><span class="ca">${esc(nameA)}</span><span></span><span class="cb">${esc(nameB)}</span><span></span></div>
         ${rows}${add}${none}${msg}${foot}</div>`;
