@@ -22,7 +22,7 @@
       <div class="eyebrow">Bike Polo Dresden · 2x2 · Best of 5 · Winter 2026/27</div>
       <div class="orga" id="orga">
         <span id="orga-off"><button class="ghost" type="button" id="login-open">Orga-Login</button></span>
-        <span id="orga-on" hidden><span class="tag">Orga</span> <button class="ghost" type="button" id="logout">Abmelden</button></span>
+        <span id="orga-on" hidden><span class="tag">Orga</span> <a class="court-open" id="court-open" href="#spieltag">Spieltag</a> <button class="ghost" type="button" id="logout">Abmelden</button></span>
       </div>
     </div>
     <h1>Winter<span>liga</span></h1>
@@ -189,6 +189,71 @@
         <h2>Alle Stats</h2>
         <div class="tiles all" id="all-stats"></div>
       </section>
+    </div>
+
+    <div class="view court" id="view-spieltag" hidden>
+      <div class="court-pick" id="court-pick"></div>
+
+      <div class="court-game" id="court-game" hidden>
+        <div class="court-top">
+          <button class="ghost" type="button" data-act="courtleave">Zurück</button>
+          <div class="court-round"><b id="court-round"></b><span id="court-standing"></span></div>
+          <button class="ghost" type="button" id="court-discard" data-act="courtdiscard">Verwerfen</button>
+        </div>
+
+        <div class="court-clock">
+          <div class="court-time" id="court-time" role="timer" aria-label="Verbleibende Zeit">12:00</div>
+          <div class="court-state" id="court-state"></div>
+          <div class="court-controls">
+            <div class="seg" id="court-minutes" role="group" aria-label="Spieldauer">
+              <button type="button" data-act="courtminutes" data-minutes="12" aria-pressed="true">12 Min</button>
+              <button type="button" data-act="courtminutes" data-minutes="15" aria-pressed="false">15 Min</button>
+            </div>
+            <button class="ghost" type="button" id="court-reset" data-act="courtreset">Zurücksetzen</button>
+            <button class="primary" type="button" id="court-run" data-act="courtrun">Start</button>
+          </div>
+        </div>
+
+        <div class="court-sides">
+          <button class="side" type="button" id="side-left" data-act="goal" data-side="left">
+            <span class="side-where">Links vom Ref</span>
+            <span class="side-team" id="left-team"></span>
+            <span class="side-players" id="left-players"></span>
+            <span class="side-score" id="left-score">0</span>
+            <span class="side-hint">Tippen für Tor</span>
+          </button>
+          <button class="side" type="button" id="side-right" data-act="goal" data-side="right">
+            <span class="side-where">Rechts vom Ref</span>
+            <span class="side-team" id="right-team"></span>
+            <span class="side-players" id="right-players"></span>
+            <span class="side-score" id="right-score">0</span>
+            <span class="side-hint">Tippen für Tor</span>
+          </button>
+        </div>
+
+        <div class="court-under">
+          <button class="ghost" type="button" id="left-minus" data-act="ungoal" data-side="left">−1</button>
+          <button class="ghost" type="button" data-act="courtswap">Seiten tauschen</button>
+          <button class="ghost" type="button" id="right-minus" data-act="ungoal" data-side="right">−1</button>
+        </div>
+
+        <div class="court-end">
+          <p class="err" id="court-err" hidden></p>
+          <button class="danger" type="button" id="court-finish" data-act="courtfinish">Spiel beenden</button>
+        </div>
+      </div>
+
+      <div class="court-done" id="court-done" hidden>
+        <h2 id="court-done-title"></h2>
+        <p class="court-done-game" id="court-done-game"></p>
+        <div class="court-done-score panel">
+          <span class="tname ta" id="court-done-left"></span>
+          <span class="sscore"><span id="court-done-a"></span><span class="x">:</span><span id="court-done-b"></span></span>
+          <span class="tname tb" id="court-done-right"></span>
+        </div>
+        <button class="primary" type="button" id="court-next" data-act="courtnext">Nächstes Spiel</button>
+        <button class="ghost" type="button" data-act="courtclose">Zur Übersicht</button>
+      </div>
     </div>
   </main>
 

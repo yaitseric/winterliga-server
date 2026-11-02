@@ -4,7 +4,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const MIN_PLAYERS = 2;
   const MAX_PLAYERS = 3;
-  const VIEWS = ["tabelle", "begegnungen", "teams", "stats"];
+  const VIEWS = ["tabelle", "begegnungen", "teams", "stats", "spieltag"];
   const FACTS_SHOWN = 4;
   const S = {
     teams: [], series: [], tLoaded: false, sLoaded: false,
@@ -12,6 +12,7 @@
     open: new Set(), editTeam: null, confirm: null, busy: new Set(), msg: {},
     pick: { a: [], b: [] }, pickHtml: { a: "", b: "" },
     view: VIEWS[0], rules: false, scrollTo: null, factIds: [], chart: null, chartW: 0, chartMetric: "points", eloK: 64, elo: null,
+    live: null, courtDone: null, courtArm: null, courtErr: null, courtNote: null, courtBusy: false, courtPickHtml: "", audio: null, wakeLock: null,
   };
 
   // ---------- Server ----------
@@ -194,6 +195,7 @@
     renderRecent(loaded);
     renderFacts(loaded);
     renderChart();
+    renderCourt();
     renderSeries(loaded);
     renderStandings(loaded);
     renderMatrix(loaded);
@@ -507,7 +509,7 @@
       const none = !st.n && !add ? `<p class="note">Noch keine Spiele eingetragen.</p>` : "";
       const msg = S.msg[s.id] ? `<p class="err">${esc(S.msg[s.id])}</p>` : "";
       const confirming = S.confirm === s.id;
-      const foot = `<div class="series-foot"><span>${st.n ? `Tore gesamt ${st.ga}:${st.gb}` : ""}</span>${S.canWrite ? `<button class="danger${confirming ? " armed" : ""}" type="button" data-act="delseries" data-id="${s.id}" ${busy ? "disabled" : ""}>${confirming ? "Wirklich löschen?" : "Begegnung löschen"}</button>` : ""}</div>`;
+      const foot = `<div class="series-foot"><span>${st.n ? `Tore gesamt ${st.ga}:${st.gb}` : ""}</span>${S.canWrite && !st.done ? `<button class="primary" type="button" data-act="courtopen" data-id="${s.id}">Spieltag-Modus</button>` : ""}${S.canWrite ? `<button class="danger${confirming ? " armed" : ""}" type="button" data-act="delseries" data-id="${s.id}" ${busy ? "disabled" : ""}>${confirming ? "Wirklich löschen?" : "Begegnung löschen"}</button>` : ""}</div>`;
       body = `<div class="games">
         <div class="grow headrow"><span></span><span class="ca">${esc(nameA)}</span><span></span><span class="cb">${esc(nameB)}</span><span></span></div>
         ${rows}${add}${none}${msg}${foot}</div>`;
@@ -688,6 +690,9 @@
     else if (act === "rules") { ev.preventDefault(); setRules(!S.rules); }
     else if (act === "shuffle") { S.factIds = pickFacts(S.factIds); renderFacts(true); }
     else if (act === "chartmetric") { S.chartMetric = el.dataset.metric; renderChart(); }
+    else if (act === "goal") changeGoal(el.dataset.side, 1, el);
+    else if (act === "ungoal") changeGoal(el.dataset.side, -1, el);
+    else if (act.startsWith("court")) courtAction(act, el);
     else if (act === "addgame") addGame(id);
     else if (act === "editteam") { S.editTeam = S.editTeam === id ? null : id; delete S.msg["t:" + id]; render(); if (S.editTeam) { const el = document.getElementById("p-" + id); if (el) el.focus(); } }
     else if (act === "renameteam") renameTeam(id);
@@ -790,6 +795,9 @@
     if (hash === "regeln") { hash = S.view; history.replaceState(null, "", "#" + hash); setRules(true); }
     const view = S.view = VIEWS.includes(hash) ? hash : VIEWS[0];
     VIEWS.forEach((v) => { $(`#view-${v}`).hidden = v !== view; });
+    document.body.classList.toggle("court-mode", view === "spieltag");
+    renderCourt();
+    syncWakeLock();
     document.querySelectorAll(".tabs a").forEach((a) => {
       if (a.dataset.view === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
@@ -814,6 +822,256 @@
     if (open) scrollToTabs();
   }
 
+  // ---------- Spieltag-Modus ----------
+  // Das laufende Spiel liegt auf diesem Handy, bis es beendet wird. Jede Änderung wird sofort gespeichert,
+  // die Zeit läuft über Zeitstempel: So überstehen Stand und Uhr eine gesperrte Seite oder einen Neustart des Browsers.
+  const LIVE_STORE = "winterliga-live";
+  const GAME_MINUTES = [12, 15];
+  const GOAL_REPEAT_MS = 400;
+  const lastGoal = { left: 0, right: 0 };
+  function loadLive() {
+    try { const v = JSON.parse(localStorage.getItem(LIVE_STORE)); if (v && v.seriesId) S.live = v; } catch (_) { }
+  }
+  function saveLive() {
+    try { if (S.live) localStorage.setItem(LIVE_STORE, JSON.stringify(S.live)); else localStorage.removeItem(LIVE_STORE); } catch (_) { }
+  }
+  const newLive = (seriesId, left = "a", minutes = GAME_MINUTES[0]) => ({ seriesId, left, minutes, a: 0, b: 0, elapsed: 0, startedAt: null, alarmed: false });
+  const otherTeam = (team) => (team === "a" ? "b" : "a");
+  const teamOnSide = (side) => (side === "left" ? S.live.left : otherTeam(S.live.left));
+  const playedMs = (l) => l.elapsed + (l.startedAt ? Date.now() - l.startedAt : 0);
+  const remainingMs = (l) => Math.max(0, l.minutes * 60000 - playedMs(l));
+  function fmtClock(ms) {
+    const total = Math.ceil(ms / 1000);
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+  }
+
+  function changeGoal(side, delta, el) {
+    const l = S.live;
+    if (!l) return;
+    // Ein versehentlicher Doppeltipp zählt nur einmal.
+    if (delta > 0) {
+      if (Date.now() - lastGoal[side] < GOAL_REPEAT_MS) return;
+      lastGoal[side] = Date.now();
+    }
+    const team = teamOnSide(side), value = l[team] + delta;
+    if (value < 0 || value > 99) return;
+    l[team] = value;
+    S.courtArm = null; S.courtErr = null;
+    saveLive();
+    if (navigator.vibrate) navigator.vibrate(delta > 0 ? 30 : [20, 40, 20]);
+    renderCourt();
+    if (delta > 0) {
+      const score = $(`#${side}-score`);
+      score.classList.remove("bump"); void score.offsetWidth; score.classList.add("bump");
+    }
+    if (el && el.blur) el.blur();
+  }
+
+  // Töne funktionieren im Browser erst nach einem Tipp, deshalb entsteht der Audio-Kontext beim Start der Uhr.
+  function unlockAudio() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!S.audio && Ctx) S.audio = new Ctx();
+      if (S.audio && S.audio.state === "suspended") S.audio.resume();
+    } catch (_) { }
+  }
+  function alarm() {
+    if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
+    const ctx = S.audio;
+    if (!ctx) return;
+    [0, 0.5, 1].forEach((at) => {
+      const tone = ctx.createOscillator(), gain = ctx.createGain();
+      tone.frequency.value = 880; gain.gain.value = 0.4;
+      tone.connect(gain); gain.connect(ctx.destination);
+      tone.start(ctx.currentTime + at); tone.stop(ctx.currentTime + at + 0.3);
+    });
+  }
+
+  // Der Bildschirm bleibt an, solange ein Spiel offen ist. Der Browser gibt die Sperre frei, wenn die Seite verdeckt wird.
+  async function syncWakeLock() {
+    const want = S.view === "spieltag" && !!S.live && document.visibilityState === "visible";
+    try {
+      if (want && !S.wakeLock && "wakeLock" in navigator) {
+        S.wakeLock = await navigator.wakeLock.request("screen");
+        S.wakeLock.addEventListener("release", () => { S.wakeLock = null; });
+      } else if (!want && S.wakeLock) {
+        await S.wakeLock.release();
+        S.wakeLock = null;
+      }
+    } catch (_) { S.wakeLock = null; }
+  }
+
+  function armCourt(key, action) {
+    clearTimeout(armCourt.timer);
+    if (S.courtArm === key) { S.courtArm = null; action(); renderCourt(); return; }
+    S.courtArm = key;
+    armCourt.timer = setTimeout(() => { S.courtArm = null; renderCourt(); }, 4000);
+    renderCourt();
+  }
+
+  async function finishGame() {
+    const l = S.live, id = l.seriesId;
+    S.courtBusy = true; S.courtErr = null; renderCourt();
+    try {
+      await refresh();
+      const s = getSeries(id);
+      if (!s) throw { message: "Diese Begegnung gibt es nicht mehr." };
+      if (stats(s).done) throw { message: "Die Begegnung ist schon entschieden. Verwirf dieses Spiel oder trag es unter Begegnungen ein." };
+      const games = [...s.games.map((g) => ({ a: g.a, b: g.b })), { a: l.a, b: l.b }];
+      await api("PATCH", "/api/series/" + id, { games });
+      S.courtDone = { seriesId: id, left: l.left, minutes: l.minutes, a: l.a, b: l.b, number: games.length };
+      S.live = null;
+      saveLive();
+    } catch (e) {
+      S.courtErr = `${(e && e.message) || "Speichern hat nicht geklappt."} Der Stand bleibt auf diesem Handy gespeichert.`;
+    } finally {
+      S.courtBusy = false;
+      renderCourt();
+      syncWakeLock();
+    }
+  }
+
+  function courtAction(act, el) {
+    const l = S.live;
+    if (act !== "courtfinish" && act !== "courtdiscard") { S.courtArm = null; clearTimeout(armCourt.timer); }
+    if (act === "courtopen") {
+      if (!l) S.live = newLive(el.dataset.id);
+      S.courtDone = null; saveLive();
+      location.hash = "#spieltag";
+    } else if (act === "courtstart") {
+      S.live = newLive(el.dataset.id); S.courtDone = null; S.courtNote = null; saveLive(); syncWakeLock();
+    } else if (act === "courtleave") {
+      location.hash = "#begegnungen";
+    } else if (act === "courtclose") {
+      S.courtDone = null; location.hash = "#tabelle";
+    } else if (act === "courtnext") {
+      const d = S.courtDone;
+      S.live = newLive(d.seriesId, d.left, d.minutes); S.courtDone = null; saveLive(); syncWakeLock();
+    } else if (l && act === "courtrun") {
+      unlockAudio();
+      if (l.startedAt) { l.elapsed = playedMs(l); l.startedAt = null; } else l.startedAt = Date.now();
+      saveLive();
+    } else if (l && act === "courtreset") {
+      l.elapsed = 0; l.startedAt = null; l.alarmed = false; saveLive();
+    } else if (l && act === "courtminutes") {
+      l.minutes = Number(el.dataset.minutes); saveLive();
+    } else if (l && act === "courtswap") {
+      l.left = otherTeam(l.left); saveLive();
+    } else if (l && act === "courtdiscard") {
+      armCourt("discard", () => { S.live = null; S.courtErr = null; saveLive(); syncWakeLock(); });
+    } else if (l && act === "courtfinish" && !S.courtBusy) {
+      armCourt("finish", finishGame);
+    }
+    renderCourt();
+  }
+
+  function tickCourt() {
+    const l = S.live;
+    if (!l) return;
+    if (l.startedAt && remainingMs(l) <= 0) {
+      l.elapsed = l.minutes * 60000; l.startedAt = null;
+      if (!l.alarmed) { l.alarmed = true; alarm(); }
+      saveLive();
+    }
+    if (S.view === "spieltag" && !$("#court-game").hidden) renderClock();
+  }
+
+  function renderClock() {
+    const l = S.live, rem = remainingMs(l), running = !!l.startedAt, over = rem <= 0, fresh = !l.elapsed && !running;
+    const time = $("#court-time"), text = fmtClock(rem);
+    if (time.textContent !== text) time.textContent = text;
+    time.className = `court-time${over ? " over" : running && rem <= 60000 ? " soon" : ""}`;
+    $("#court-state").textContent = over ? "Zeit abgelaufen" : running ? "Läuft" : fresh ? "Bereit" : "Pause";
+    $("#court-minutes").hidden = !fresh;
+    document.querySelectorAll("#court-minutes button").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.minutes) === l.minutes)));
+    $("#court-reset").hidden = running || fresh;
+    const run = $("#court-run");
+    run.hidden = over;
+    run.textContent = running ? "Pause" : fresh ? "Start" : "Weiter";
+    $("#court-discard").hidden = running;
+  }
+
+  function renderCourtGame(s) {
+    const l = S.live, st = stats(s), score = { a: st.pa, b: st.pb };
+    ["left", "right"].forEach((side) => {
+      const team = teamOnSide(side), name = teamName(s[team]);
+      const panel = $(`#side-${side}`), minus = $(`#${side}-minus`);
+      panel.className = `side team-${team}`;
+      panel.setAttribute("aria-label", `Tor für ${name}, Stand ${l[team]}`);
+      $(`#${side}-team`).textContent = name;
+      $(`#${side}-players`).textContent = lineupOf(s, team).join(" · ");
+      $(`#${side}-score`).textContent = l[team];
+      minus.disabled = !l[team];
+      minus.setAttribute("aria-label", `Tor für ${name} zurücknehmen`);
+    });
+    $("#court-round").textContent = `Spiel ${st.n + 1} von 5`;
+    $("#court-standing").textContent = `Stand ${score[l.left]} : ${score[otherTeam(l.left)]}`;
+    const finish = $("#court-finish"), armed = S.courtArm === "finish";
+    finish.classList.toggle("armed", armed);
+    finish.disabled = S.courtBusy;
+    finish.textContent = S.courtBusy ? "Wird gespeichert …" : armed ? `${l[l.left]} : ${l[otherTeam(l.left)]} eintragen?` : "Spiel beenden";
+    const discard = $("#court-discard");
+    discard.classList.toggle("armed", S.courtArm === "discard");
+    discard.textContent = S.courtArm === "discard" ? "Wirklich?" : "Verwerfen";
+    const err = $("#court-err");
+    err.hidden = !S.courtErr;
+    err.textContent = S.courtErr || "";
+    renderClock();
+  }
+
+  function renderCourtDone(s) {
+    const d = S.courtDone, st = stats(s), left = d.left, right = otherTeam(left), score = { a: st.pa, b: st.pb };
+    $("#court-done-title").textContent = !st.done ? `Spiel ${d.number} eingetragen` : st.winner ? `${teamName(s[st.winner])} gewinnt` : "Unentschieden";
+    $("#court-done-game").textContent = `${st.done ? `Spiel ${d.number}: ` : ""}${teamName(s[left])} ${d[left]} : ${d[right]} ${teamName(s[right])}`;
+    $("#court-done-left").textContent = teamName(s[left]);
+    $("#court-done-right").textContent = teamName(s[right]);
+    $("#court-done-a").textContent = score[left];
+    $("#court-done-b").textContent = score[right];
+    $("#court-next").hidden = st.done;
+  }
+
+  function renderCourtPick(loaded) {
+    const open = S.series.filter((s) => !stats(s).done).sort((x, y) => stats(y).n - stats(x).n || byNewest(x, y));
+    const note = S.courtNote ? `<p class="err">${esc(S.courtNote)}</p>` : "";
+    let body;
+    if (!S.canWrite) body = `<div class="panel">${emptyBox("Nur für die Orga", "Melde dich als Orga an, um Spiele live einzutragen.")}</div>`;
+    else if (!loaded) body = `<div class="panel">${emptyBox("Lade Begegnungen", "Einen Moment.")}</div>`;
+    else if (!open.length) body = `<div class="panel">${emptyBox("Keine offene Begegnung", "Lege zuerst unter Begegnungen eine an.")}</div>`;
+    else {
+      body = open.map((s) => {
+        const st = stats(s);
+        return `<button class="live-row panel court-choice" type="button" data-act="courtstart" data-id="${esc(s.id)}">
+          <span class="tname ta">${esc(teamName(s.a))}</span>
+          <span class="sscore"><span class="ca">${st.pa}</span><span class="x">:</span><span class="cb">${st.pb}</span></span>
+          <span class="tname tb">${esc(teamName(s.b))}</span>
+          <span class="meta">${pipsOf(s, st)}<span>Spiel ${st.n + 1} von 5</span></span>
+        </button>`;
+      }).join("");
+    }
+    const html = `<div class="court-pick-head"><h2>Spieltag</h2><a href="#begegnungen">Zurück</a></div><p class="note">Welche Begegnung wird gespielt?</p>${note}${body}`;
+    if (html !== S.courtPickHtml) { S.courtPickHtml = html; $("#court-pick").innerHTML = html; }
+  }
+
+  function renderCourt() {
+    const open = $("#court-open");
+    open.textContent = S.live ? "Zum laufenden Spiel" : "Spieltag";
+    open.classList.toggle("running", !!S.live);
+    if (S.view !== "spieltag") return;
+    const loaded = S.tLoaded && S.sLoaded;
+    let s = S.live && getSeries(S.live.seriesId);
+    if (S.live && loaded && !s) {
+      S.live = null; saveLive();
+      S.courtNote = "Diese Begegnung gibt es nicht mehr, das Spiel wurde verworfen.";
+    }
+    const done = S.courtDone && getSeries(S.courtDone.seriesId);
+    $("#court-game").hidden = !s;
+    $("#court-done").hidden = !done || !!s;
+    $("#court-pick").hidden = !!s || !!done;
+    if (s) renderCourtGame(s);
+    else if (done) renderCourtDone(done);
+    else renderCourtPick(loaded);
+  }
+
   // ---------- Saisonverlauf ----------
   const chartEl = $("#chart");
   const nearestStep = (ev) => {
@@ -834,9 +1092,12 @@
   new ResizeObserver(() => { if (chartEl.clientWidth !== S.chartW) renderChart(); }).observe(chartEl);
 
   // ---------- Start ----------
+  loadLive();
   showView();
   render();
   refresh();
+  setInterval(tickCourt, 250);
+  document.addEventListener("visibilitychange", () => { tickCourt(); syncWakeLock(); });
   setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 15000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
 })();
