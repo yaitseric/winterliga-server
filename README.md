@@ -1,52 +1,75 @@
-# Winterliga Dresden – selbst gehostet
+# Winterliga – Bike Polo
 
-Kleine Web-App für die Bike-Polo-Winterliga: Teams, Begegnungen (Best of 5), Tabelle und Direktvergleich.
-Lesen kann jeder mit dem Link, eintragen nur die Orga mit Passwort.
+A small, self-hosted web app for a bike polo winter league: teams, matches (best of 5),
+standings, head-to-head records, stats and rules.
+Anyone with the link can view it; only the organisers can enter results, using a password.
 
-## Inhalt
+The app's interface is in German.
 
-| Datei | Zweck |
+## Contents
+
+| File | Purpose |
 |---|---|
-| `server.js` | Node-Server ohne Abhängigkeiten: Seite, API, Passwortprüfung |
-| `public/` | Oberfläche (HTML, CSS, JS, Schriften lokal, also keine Google-Fonts-Anfragen) |
-| `seed.json` | Startdaten: die bisherigen 4 Teams und 4 Begegnungen |
-| `Dockerfile`, `compose.yaml` | App-Container plus Tailscale-Sidecar |
-| `ts-config/winterliga.json` | Serve-/Funnel-Konfiguration (HTTPS 443 → App) |
+| `server.js` | Node server with no dependencies: serves the page, the API and checks the password |
+| `public/` | Frontend (HTML, CSS, JS; fonts are served locally, so there are no Google Fonts requests) |
+| `seed.json` | Initial data, only loaded on the very first start |
+| `Dockerfile`, `compose.yaml` | App container plus a Tailscale sidecar |
+| `ts-config/winterliga.json` | Serve/Funnel configuration (HTTPS 443 → app) |
+| `.env.example` | Template for the environment variables |
 
-## Einrichten
+## Running locally
 
-1. Ordner auf den Homeserver kopieren, z. B.
-   `scp -r winterliga-server yaitseric@homelab:~/`
-2. Auf dem Server: `cp .env.example .env` und ausfüllen:
-   - `TS_AUTHKEY`: neuer Auth-Key aus der Tailscale-Admin-Konsole
-   - `TS_EXTRA_ARGS`: Tag mit Funnel-Recht (siehe unten)
-   - `ORGA_PASSWORD`: mindestens 8 Zeichen
-3. Starten: `docker compose up -d --build`
-4. Aufrufen: `https://winterliga.<dein-tailnet>.ts.net`
-   Der erste Aufruf kann ein paar Sekunden dauern, bis das Zertifikat da ist.
+Node 22 is all you need, there is nothing to install:
 
-### Funnel in der ACL
-
-Funnel braucht das Attribut `funnel` für das Gerät. Wenn dein Jellyfin-Sidecar schon über Funnel läuft,
-nimm denselben Tag. Sonst in der Policy ergänzen (Tag-Name anpassen):
-
-```json
-"tagOwners": { "tag:funnel": ["autogroup:admin"] },
-"nodeAttrs": [ { "target": ["tag:funnel"], "attr": ["funnel"] } ]
+```sh
+ORGA_PASSWORD=somelongpassword node server.js
 ```
 
-## Betrieb
+The app is then available at `http://localhost:3000`. Data is stored in `./data/league.json`.
 
-- **Daten** liegen im Volume `winterliga-data` als `league.json`.
-  `seed.json` wird nur beim allerersten Start übernommen, wenn noch keine Daten existieren.
+### Environment variables
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ORGA_PASSWORD` | – | Required, at least 8 characters |
+| `PORT` | `3000` | Server port |
+| `HOST` | `0.0.0.0` | Address the server listens on |
+| `DATA_DIR` | `./data` | Directory for `league.json` |
+| `SEED_FILE` | `./seed.json` | Initial data for the first start |
+
+## Running with Docker and Tailscale Funnel
+
+`compose.yaml` starts the app together with a Tailscale sidecar. The app does not publish any port;
+it is only reachable through Tailscale Serve/Funnel at `https://winterliga.<your-tailnet>.ts.net`.
+
+1. `cp .env.example .env` and fill it in (`TS_AUTHKEY`, `ORGA_PASSWORD`).
+2. Funnel has to be allowed for the device, e.g. via a tag in your Tailscale policy:
+   ```json
+   "tagOwners": { "tag:funnel": ["autogroup:admin"] },
+   "nodeAttrs": [ { "target": ["tag:funnel"], "attr": ["funnel"] } ]
+   ```
+   Then create the auth key with that tag.
+3. Start it: `docker compose up -d --build`
+   The first request can take a few seconds until the certificate has been issued.
+
+If you don't use Tailscale, you can put the container behind a different reverse proxy instead.
+That proxy should run on the same machine and set `X-Forwarded-For`, see the Security section.
+
+### Day-to-day operation
+
+- **Data** is stored in the volume as `league.json`.
 - **Backup:** `docker cp winterliga:/data/league.json ./league-backup.json`
-- **Passwort ändern:** in `.env` anpassen, dann `docker compose up -d`.
-  Alle Orga-Geräte müssen sich danach neu anmelden.
+- **Change the password:** edit `.env`, then run `docker compose up -d`.
+  All organiser devices have to log in again afterwards.
 - **Logs:** `docker compose logs -f winterliga`
-- **Update der App:** Dateien ersetzen, dann `docker compose up -d --build`. Die Daten bleiben erhalten.
+- **Update:** replace the files, then run `docker compose up -d --build`. Your data is kept.
 
-## Sicherheit
+## Security
 
-- Die App lauscht nur auf `127.0.0.1` im Netz des Sidecars, es gibt keinen veröffentlichten Host-Port.
-- Jede Änderung braucht das Orga-Passwort. Nach 8 Fehlversuchen ist die Anmeldung 10 Minuten gesperrt.
-- Strenge Content-Security-Policy, keine externen Skripte oder Schriften.
+- Every change requires the organiser password. After 8 failed attempts, login is blocked
+  for that IP for 10 minutes.
+- `X-Forwarded-For` is only trusted when the request comes from `localhost` (i.e. the local
+  proxy), and then only its last entry. Clients connecting directly cannot spoof their IP this way.
+- In the Docker setup, the app only listens on `127.0.0.1` inside the sidecar's network.
+- The container runs read-only, without capabilities and as an unprivileged user.
+- Strict Content Security Policy, no external scripts or fonts.

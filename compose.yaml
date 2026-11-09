@@ -37,7 +37,7 @@ services:
     pids_limit: 100
     mem_limit: 256m
 
-# Festes Subnetz: /etc/nftables/funnel-isolation.nft trennt es von LAN, Host und Tailnet.
+# Festes Subnetz, damit es sich per Host-Firewall von LAN, Host und Tailnet trennen lässt.
 networks:
   default:
     ipam:

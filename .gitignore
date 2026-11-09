@@ -4,6 +4,7 @@
 /*
 !/.gitignore
 !/.dockerignore
+!/.env.example
 !/Dockerfile
 !/README.md
 !/compose.yaml
@@ -18,3 +19,6 @@
 *.pem
 *secret*
 *token*
+
+# Private Betriebsnotizen (Homeserver, Firewall), nur lokal.
+README.private.md
