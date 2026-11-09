@@ -114,9 +114,15 @@ const findSeries = (id) => state.series.find((s) => s.id === id) || (() => { thr
 
 // ---------- Anmeldung mit Bremse gegen Raten ----------
 const fails = new Map(); // ip -> { n, until }
+// X-Forwarded-For kann jeder Client selbst mitschicken. Der Header zählt deshalb nur, wenn
+// die Anfrage vom lokalen Proxy kommt (Tailscale Serve/Funnel im selben Netz), und dann nur
+// sein letzter Eintrag: den hat der Proxy gesetzt, alles davor könnte gefälscht sein.
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 function clientIp(req) {
-  const fwd = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
-  return fwd || req.socket.remoteAddress || "?";
+  const peer = req.socket.remoteAddress || "?";
+  if (!LOOPBACK.has(peer)) return peer;
+  const fwd = String(req.headers["x-forwarded-for"] || "").split(",").pop().trim();
+  return fwd || peer;
 }
 function checkAuth(req) {
   const ip = clientIp(req), now = Date.now();
