@@ -15,6 +15,14 @@ const DATA_FILE = path.join(DATA_DIR, "league.json");
 const SEED_FILE = process.env.SEED_FILE || path.join(__dirname, "seed.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const PASSWORD = process.env.ORGA_PASSWORD || "";
+
+const ELO_K = Number(process.env.ELO_K || 64);
+
+if (!Number.isFinite(ELO_K) || ELO_K <= 0) {
+  console.error("ELO_K muss eine positive Zahl sein.");
+  process.exit(1);
+}
+
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 3;
 
@@ -169,7 +177,12 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
-const publicState = () => ({ rev: state.rev, teams: state.teams, series: state.series });
+const publicState = () => ({
+  rev: state.rev,
+  teams: state.teams,
+  series: state.series,
+  eloK: ELO_K
+});
 
 function serveStatic(req, res, urlPath) {
   const rel = urlPath === "/" ? "index.html" : urlPath.slice(1);
