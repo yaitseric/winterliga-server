@@ -177,12 +177,7 @@ function readBody(req) {
     req.on("error", reject);
   });
 }
-const publicState = () => ({
-  rev: state.rev,
-  teams: state.teams,
-  series: state.series,
-  eloK: ELO_K
-});
+const publicState = () => ({ rev: state.rev, teams: state.teams, series: state.series, eloK: ELO_K });
 
 function serveStatic(req, res, urlPath) {
   const rel = urlPath === "/" ? "index.html" : urlPath.slice(1);
@@ -203,7 +198,8 @@ async function api(req, res, parts) {
   const method = req.method;
 
   if (resource === "state" && method === "GET") {
-    const etag = `"${state.rev}"`;
+    // K gehört mit ins ETag, sonst sehen offene Tabs nach einem Neustart mit anderem ELO_K weiter das alte.
+    const etag = `"${state.rev}-${ELO_K}"`;
     if (req.headers["if-none-match"] === etag) return send(res, 304, "", { ETag: etag, "Cache-Control": "no-cache" });
     return send(res, 200, JSON.stringify(publicState()), { "Content-Type": "application/json; charset=utf-8", ETag: etag, "Cache-Control": "no-cache" });
   }

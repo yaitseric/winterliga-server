@@ -36,6 +36,7 @@ The app is then available at `http://localhost:3000`. Data is stored in `./data/
 | `HOST` | `0.0.0.0` | Address the server listens on |
 | `DATA_DIR` | `./data` | Directory for `league.json` |
 | `SEED_FILE` | `./seed.json` | Initial data for the first start |
+| `ELO_K` | `64` | K-factor for the team Elo ratings |
 
 ## Running with Docker and Tailscale Funnel
 
