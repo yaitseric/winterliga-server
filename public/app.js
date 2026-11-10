@@ -11,7 +11,7 @@
     canWrite: false, key: null, etag: null, offline: false,
     open: new Set(), editTeam: null, confirm: null, busy: new Set(), msg: {},
     pick: { a: [], b: [] }, pickHtml: { a: "", b: "" },
-    view: VIEWS[0], rules: false, scrollTo: null, factIds: [], chart: null, chartW: 0, chartMetric: "points",
+    view: VIEWS[0], rules: false, scrollTo: null, factIds: [], chart: null, chartW: 0, chartMetric: "points", eloK: 64, elo: null,
   };
 
   // ---------- Server ----------
@@ -25,7 +25,10 @@
     S.teams = (st.teams || []).map((t) => ({ id: t.id, name: String(t.name || "Team"), players: Array.isArray(t.players) ? t.players : [] }));
     S.series = (st.series || []).map((s) => ({ id: s.id, a: s.a, b: s.b, lineupA: Array.isArray(s.lineupA) ? s.lineupA : [], lineupB: Array.isArray(s.lineupB) ? s.lineupB : [], date: s.date || null, createdAt: s.createdAt || 0, games: Array.isArray(s.games) ? s.games : [] }));
     S.tLoaded = S.sLoaded = true;
-    S.etag = `"${st.rev}"`;
+    // Muss zum ETag des Servers passen, der K gehört mit hinein.
+    S.etag = `"${st.rev}-${st.eloK}"`;
+    S.eloK = Number(st.eloK) || S.eloK;
+    S.elo = null;
   }
   async function api(method, url, body) {
     const headers = { "Content-Type": "application/json" };
@@ -75,6 +78,28 @@
     const pa = wa + d / 2, pb = wb + d / 2;
     return { wa, wb, d, pa, pb, ga, gb, n, done, winner, draw: done && !winner, state: done ? "done" : n ? "live" : "open" };
   }
+
+  // ---------- Elo ----------
+  // Alle Teams starten bei 1000, entschiedene Begegnungen zählen in der Reihenfolge der Spieltage
+  // (Sieg 1, Unentschieden 0,5, Niederlage 0). Die gerundete Änderung bekommt ein Team gutgeschrieben
+  // und das andere abgezogen, so bleibt die Summe aller Ratings gleich.
+  const expectedScore = (r1, r2) => 1 / (1 + 10 ** ((r2 - r1) / 400));
+  // Einmal je Stand berechnet, applyState verwirft das Ergebnis.
+  function eloRatings() {
+    if (S.elo) return S.elo;
+    const ratings = new Map(S.teams.map((t) => [t.id, 1000]));
+    const steps = [{ series: null, vals: new Map(ratings) }];
+    S.series.filter((s) => ratings.has(s.a) && ratings.has(s.b)).sort(byOldest).forEach((s) => {
+      const st = stats(s);
+      if (!st.done) return;
+      const ra = ratings.get(s.a), rb = ratings.get(s.b);
+      const d = Math.round(S.eloK * ((st.winner === "a" ? 1 : st.winner === "b" ? 0 : 0.5) - expectedScore(ra, rb)));
+      ratings.set(s.a, ra + d); ratings.set(s.b, rb - d);
+      steps.push({ series: s, vals: new Map(ratings) });
+    });
+    return (S.elo = { ratings, steps });
+  }
+
   // Erste Begegnung je Paarung (nach Datum, dann Anlagezeitpunkt) bringt beiden Teams +1.
   function firstMeetings() {
     const first = new Map();
@@ -300,8 +325,9 @@
   }
 
   // Stand aller Teams nach jedem Schritt, beginnend bei 0. Punkte gibt es erst für entschiedene Begegnungen,
-  // Tore zählen wie in der Tabelle auch aus laufenden.
+  // Tore zählen wie in der Tabelle auch aus laufenden. Das Rating hat eine eigene Rechnung und startet bei 1000.
   function chartHistory(metric) {
+    if (metric === "rating") return eloRatings().steps;
     const firsts = firstMeetings(), goals = metric === "goals";
     const totals = new Map(S.teams.map((t) => [t.id, 0]));
     const steps = [{ series: null, vals: new Map(totals) }];
@@ -317,9 +343,11 @@
   const teamColor = (i) => (i < 8 ? `var(--team-${i + 1})` : "var(--muted)");
 
   function renderChart() {
-    const box = $("#chart"), W = box.clientWidth, goals = S.chartMetric === "goals";
+    const box = $("#chart"), W = box.clientWidth, goals = S.chartMetric === "goals", rating = S.chartMetric === "rating";
     document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.metric === S.chartMetric)));
-    $("#chart-note").textContent = `Jeder Schritt ist eine ${goals ? "Begegnung mit eingetragenen Spielen, auch wenn sie noch läuft" : "entschiedene Begegnung"}, in der Reihenfolge der Spieltage. Ohne Datum zählt der Tag, an dem sie angelegt wurde.`;
+    $("#chart-note").textContent = rating
+      ? "Jeder Schritt zeigt das Rating nach einer entschiedenen Begegnung, in der Reihenfolge der Spieltage. Alle Teams starten bei 1000."
+      : `Jeder Schritt ist eine ${goals ? "Begegnung mit eingetragenen Spielen, auch wenn sie noch läuft" : "entschiedene Begegnung"}, in der Reihenfolge der Spieltage. Ohne Datum zählt der Tag, an dem sie angelegt wurde.`;
     S.chartW = W;
     if (!W) return;
     const openStep = S.chart ? S.chart.i : null;
@@ -331,11 +359,25 @@
       $("#chart-legend").innerHTML = ""; $("#chart-table").innerHTML = "";
       return;
     }
-    const last = steps[n].vals, H = W < 600 ? 230 : 280, top = 12, bottom = 24, left = 26;
-    const max = Math.max(1, ...last.values());
-    const tick = [1, 2, 5, 10, 20, 50, 100].find((t) => max / t <= 5) || 200;
-    const yMax = Math.ceil(max / tick) * tick;
-    const y = (v) => top + (H - top - bottom) * (1 - v / yMax);
+    const last = steps[n].vals, H = W < 600 ? 230 : 280, top = 12, bottom = 24;
+    // Punkte und Tore beginnen bei 0, das Rating wird um seinen tatsächlichen Bereich herum skaliert.
+    let yMin = 0, yMax, tick;
+    if (rating) {
+      const values = steps.flatMap((st) => [...st.vals.values()]);
+      const min = Math.min(...values), max = Math.max(...values);
+      tick = [1, 2, 5, 10, 20, 50, 100, 200].find((t) => (max - min) / t <= 5) || 500;
+      yMin = Math.floor(min / tick) * tick; yMax = Math.ceil(max / tick) * tick;
+      // Auch bei lauter gleichen Ratings einen sichtbaren Bereich zeigen.
+      if (yMin === yMax) { yMin -= tick; yMax += tick; }
+    } else {
+      const max = Math.max(1, ...last.values());
+      tick = [1, 2, 5, 10, 20, 50, 100].find((t) => max / t <= 5) || 200;
+      yMax = Math.ceil(max / tick) * tick;
+    }
+    const y = (v) => top + (H - top - bottom) * (1 - (v - yMin) / (yMax - yMin));
+    // Links Platz für die längste Achsenbeschriftung (vierstellige Ratings), mindestens die bisherigen 26px.
+    const gridValues = Array.from({ length: (yMax - yMin) / tick + 1 }, (_, i) => yMin + i * tick);
+    const left = Math.max(26, Math.max(...gridValues.map((v) => String(v).length)) * 6.8 + 12);
 
     // Endbeschriftung nur mit Namen, die Werte stehen im Graph und im Tooltip.
     // Teams auf gleicher Höhe teilen sich eine Beschriftung, statt sich zu überlagern.
@@ -357,7 +399,7 @@
 
     const xs = steps.map((_, i) => left + (W - left - right) * (i / n));
     const every = Math.ceil((n + 1) / Math.max(2, Math.floor((W - left - right) / 40)));
-    const grid = Array.from({ length: yMax / tick + 1 }, (_, i) => i * tick).map((v) =>
+    const grid = gridValues.map((v) =>
       `<line class="chart-grid" x1="${left}" x2="${W - right}" y1="${y(v)}" y2="${y(v)}"></line><text x="${left - 8}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("");
     const ticks = xs.map((x, i) => (i % every ? "" : `<text x="${x}" y="${H - 6}" text-anchor="${i ? "middle" : "start"}">${i || "Start"}</text>`)).join("");
     const lines = S.teams.map((t, i) => {
@@ -367,7 +409,7 @@
     }).join("");
     const ends = labels.map((l) => `<text class="chart-end" x="${W - right + 8}" y="${l.y + 4}">${esc(l.text)}</text>`).join("");
     box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${grid}${ticks}<line class="chart-cross" id="chart-cross" y1="${top}" y2="${H - bottom}" visibility="hidden"></line>${lines}${ends}</svg>`;
-    box.setAttribute("aria-label", `${goals ? "Tore" : "Punkte"} über ${n} ${n === 1 ? "Begegnung" : "Begegnungen"}. Stand: ${S.teams.map((t) => `${t.name} ${last.get(t.id)}`).join(", ")}.`);
+    box.setAttribute("aria-label", `${rating ? "Rating" : goals ? "Tore" : "Punkte"} über ${n} ${n === 1 ? "Begegnung" : "Begegnungen"}. Stand: ${S.teams.map((t) => `${t.name} ${last.get(t.id)}`).join(", ")}.`);
     S.chart = { xs, steps, i: null };
 
     $("#chart-legend").innerHTML = S.teams.map((t, i) => `<span class="chart-key" style="--c:${teamColor(i)}"><i></i>${esc(t.name)}</span>`).join("");
@@ -520,9 +562,10 @@
     if (!loaded) { box.innerHTML = emptyBox("Lade Teams", "Einen Moment."); return; }
     if (!S.teams.length) { box.innerHTML = `<div class="panel">${emptyBox("Noch keine Teams", S.canWrite ? "Trag oben das erste Team der Winterliga ein." : "Es wurden noch keine Teams angelegt.")}</div>`; return; }
     const table = standings();
+    const { ratings } = eloRatings();
     const list = [...S.teams].sort((a, b) => a.name.localeCompare(b.name, "de")).map((t) => {
       const r = table.find((x) => x.id === t.id);
-      const tstats = `<div class="tstats"><span>Platz <b>${table.indexOf(r) + 1}</b></span><span><b>${r.pts}</b> Punkte</span><span>Begegn. <b>${r.sw}–${r.sd}–${r.sl}</b></span><span>Spiele <b>${r.gw}–${r.gd}–${r.gl}</b></span><span>Tore <b>${r.gf}:${r.gag}</b></span></div>`;
+      const tstats = `<div class="tstats"><span>Platz <b>${table.indexOf(r) + 1}</b></span><span><b>${r.pts}</b> Punkte</span><span>Begegn. <b>${r.sw}–${r.sd}–${r.sl}</b></span><span>Spiele <b>${r.gw}–${r.gd}–${r.gl}</b></span><span>Tore <b>${r.gf}:${r.gag}</b></span><span>Rating <b>${ratings.get(t.id)}</b></span></div>`;
       const used = S.series.some((s) => s.a === t.id || s.b === t.id);
       const confirming = S.confirm === "t:" + t.id;
       const btn = S.canWrite

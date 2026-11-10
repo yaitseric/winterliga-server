@@ -27,6 +27,7 @@ services:
       - ts-winterliga
     environment:
       - ORGA_PASSWORD=${ORGA_PASSWORD}
+      - ELO_K=${ELO_K:-}
     volumes:
       - ./winterliga-data:/data:Z
     restart: unless-stopped
