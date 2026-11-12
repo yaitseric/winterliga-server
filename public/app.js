@@ -4,7 +4,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const MIN_PLAYERS = 2;
   const MAX_PLAYERS = 3;
-  const VIEWS = ["tabelle", "begegnungen", "teams", "stats"];
+  const VIEWS = ["tabelle", "begegnungen", "teams", "stats", "live"];
   const FACTS_SHOWN = 4;
   const S = {
     teams: [], series: [], tLoaded: false, sLoaded: false,
@@ -798,6 +798,7 @@
     if (card) { card.scrollIntoView({ block: "start" }); S.scrollTo = null; }
   }
   window.addEventListener("hashchange", showView);
+  window.addEventListener("winterliga:refresh", refresh);
 
   // Die Reiter kleben oben, der Inhalt darunter kann längst weggescrollt sein: Zurück an den Anfang direkt unter den Reitern.
   function scrollToTabs() {

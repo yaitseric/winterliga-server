@@ -9,7 +9,10 @@
 <link rel="preload" href="fonts/barlow-condensed-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%23DD5428%22/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="live.css">
 <script src="app.js" defer></script>
+<script src="live.js" defer></script>
+
 </head>
 <body>
 <div class="wrap" id="app">
@@ -34,6 +37,7 @@
     <a href="#begegnungen" data-view="begegnungen">Begegnungen</a>
     <a href="#teams" data-view="teams">Teams</a>
     <a href="#stats" data-view="stats">Stats</a>
+    <a href="#live" data-view="live">Live</a>
     <button class="rules-toggle" id="rules-toggle" type="button" data-act="rules" aria-expanded="false" aria-controls="rules">Regeln</button>
   </nav>
 
@@ -190,6 +194,73 @@
         <div class="tiles all" id="all-stats"></div>
       </section>
     </div>
+
+  <div class="view" id="view-live" hidden>
+    <div class="live-head">
+      <h2>Live-Spiel</h2>
+      <button class="ghost" type="button" id="live-back">Zurück zur Liga</button>
+    </div>
+
+    <div class="live-message" id="live-message" aria-live="polite">
+      Wähle die beiden Teams aus.
+    </div>
+
+    <div class="live-board">
+      <!-- Team 1 -->
+      <section class="panel live-team live-team-a">
+        <div class="live-team-info">
+          <label for="live-team-a">Team 1</label>
+          <select id="live-team-a"></select>
+        </div>
+        <div class="live-score-controls">
+          <output class="live-score" id="live-score-a">0</output>
+          <div class="live-score-buttons">
+            <button type="button" data-live-score="a:1" aria-label="Tor für Team 1">+</button>
+            <button type="button" data-live-score="a:-1" aria-label="Tor für Team 1 zurücknehmen">−</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Timer and save controls -->
+      <section class="panel live-middle">
+        <div class="live-save-wrap">
+          <button class="primary" type="button" id="live-save">Spiel speichern</button>
+          <select id="live-encounter" class="live-encounter" hidden></select>
+        </div>
+
+        <div class="live-clock-wrap">
+          <div class="live-clock" id="live-clock">12:00</div>
+          <div class="live-timer-controls">
+            <button class="primary" type="button" id="live-start">Start</button>
+            <button class="ghost" type="button" id="live-reset">Reset</button>
+          </div>
+        </div>
+
+        <label class="live-duration">
+          Min.
+          <input id="live-duration" type="number" min="1" max="60" step="1" value="12">
+        </label>
+      </section>
+
+      <!-- Team 2 -->
+      <section class="panel live-team live-team-b">
+        <div class="live-team-info">
+          <label for="live-team-b">Team 2</label>
+          <select id="live-team-b"></select>
+        </div>
+        <div class="live-score-controls">
+          <output class="live-score" id="live-score-b">0</output>
+          <div class="live-score-buttons">
+            <button type="button" data-live-score="b:1" aria-label="Tor für Team 2">+</button>
+            <button type="button" data-live-score="b:-1" aria-label="Tor für Team 2 zurücknehmen">−</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Internal status element used by live.js -->
+    <div id="live-score-controls" hidden></div>
+  </div>
   </main>
 
   <footer class="foot"></footer>
