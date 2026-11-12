@@ -1,0 +1,60 @@
+/* Live scorer */
+.live-mode .wrap { max-width: none; min-height: 100svh; box-sizing: border-box; padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+.live-mode .wrap > .board,
+.live-mode .wrap > .tabs,
+.live-mode .wrap > .rules-fold,
+.live-mode .wrap > #login-form,
+.live-mode .wrap > #banner,
+.live-mode .wrap > .foot { display: none !important; }
+.live-mode .wrap > main { margin-top: 0; min-height: calc(100svh - 16px); }
+.live-mode #view-live { min-height: calc(100svh - 16px); display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+.live-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.live-head h2 { font-size: 23px; }
+.live-board { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; }
+.live-team { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: clamp(8px, 2vh, 18px) clamp(12px, 3vw, 28px); overflow: hidden; }
+.live-team-a { border-left: 5px solid var(--a); }
+.live-team-b { border-left: 5px solid var(--b); }
+.live-team-info { min-width: 0; display: grid; gap: 8px; }
+.live-team label { font-family: var(--f-mono); text-transform: uppercase; letter-spacing: .08em; }
+.live-team select { max-width: 420px; font-size: clamp(16px, 2.4vw, 22px); font-weight: 600; }
+.live-score-controls { display: flex; align-items: center; gap: clamp(8px, 2vw, 20px); }
+.live-score { min-width: 1.25em; text-align: center; font-family: var(--f-display); font-size: clamp(64px, 15vh, 132px); font-weight: 700; line-height: .85; font-variant-numeric: tabular-nums; }
+.live-score-buttons { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; }
+.live-score-buttons button { width: clamp(42px, 8vh, 64px); height: clamp(38px, 7vh, 56px); padding: 0; font-size: clamp(24px, 5vh, 36px); line-height: 1; border: 1px solid var(--line); background: var(--bg); color: var(--ink); touch-action: manipulation; }
+.live-score-buttons button:first-child { color: var(--b); }
+.live-score-buttons button:last-child { color: var(--a); }
+.live-score-buttons button:disabled { opacity: .3; }
+.live-middle { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 5px 12px; }
+.live-clock-wrap { display: grid; justify-items: center; gap: 4px; }
+.live-clock { font-family: var(--f-mono); font-size: clamp(32px, 7vh, 54px); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.live-clock.expired { color: var(--danger); }
+.live-timer-controls { display: flex; gap: 6px; }
+.live-timer-controls button { padding: 5px 12px; }
+.live-duration { display: flex; align-items: center; gap: 5px; justify-self: end; color: var(--muted); font-size: 12px; }
+.live-duration input { width: 58px; padding: 5px; }
+.live-save-wrap { justify-self: start; display: grid; gap: 4px; }
+.live-save-wrap button { padding: 10px 16px; font-size: 15px; }
+.live-message { min-height: 1.4em; font-size: 12px; color: var(--muted); text-align: center; }
+.live-message.error { color: var(--danger); }
+.live-encounter { width: 100%; margin-top: 4px; }
+.live-score-controls.disabled { opacity: .55; }
+@media (orientation: portrait) {
+  .live-mode .wrap { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  .live-mode #view-live { min-height: calc(100svh - 16px); }
+  .live-team { grid-template-columns: minmax(0, 1fr) auto; }
+  .live-score { font-size: clamp(60px, 12vh, 100px); }
+  .live-middle { grid-template-columns: 1fr; justify-items: center; gap: 7px; }
+  .live-duration, .live-save-wrap { justify-self: center; }
+  .live-save-wrap { grid-row: 3; }
+}
+@media (max-height: 420px) and (orientation: landscape) {
+  .live-mode #view-live { gap: 4px; }
+  .live-board { gap: 4px; }
+  .live-team { padding-top: 4px; padding-bottom: 4px; }
+  .live-team-info { gap: 3px; }
+  .live-team select { padding: 4px 7px; }
+  .live-middle { padding-top: 2px; padding-bottom: 2px; }
+  .live-clock { font-size: 32px; }
+  .live-timer-controls button { padding: 3px 8px; }
+  .live-save-wrap button { padding: 6px 10px; }
+}
